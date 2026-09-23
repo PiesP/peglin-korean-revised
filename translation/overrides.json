@@ -2,5 +2,84 @@
   "schemaVersion": 1,
   "game": "Peglin",
   "language": "ko",
-  "terms": {}
+  "terms": {
+    "peglin_features_list": {
+      "translation": "특징:\n강력한 구슬과 유물을 모아 강화하고, 앞을 가로막는 몬스터와 보스를 물리치세요.\n파칭코식 전투로 적과 싸우세요. 페그를 더 많이 맞힐수록 더 큰 대미지를 줄 수 있습니다. 치명타 물약과 새로고침 물약, 폭탄을 현명하게 사용하세요.\n매번 세 부분으로 나뉜 새 지도를 탐험하세요. 여정마다 각기 다른 구슬과 적, 깜짝 요소가 기다립니다.",
+      "status": "draft",
+      "sourceFingerprint": "55853b8b72d5b6bdabe06e55ec3bb4a5198a835a7cc9c7854e6bd2cf11cc7180",
+      "comment": "Draft storefront copy. Uses established terms for orbs, relics, pegs, and Pachinko; keeps 3-part map wording literal pending contextual review."
+    },
+    "peglin_supporter_dlc_desc": {
+      "translation": "이 후원자 팩은 페글린을 즐겨 주셨고, 개발팀에 커피 한 잔을 사 주며 페글린과 앞으로 출시될 게임의 개발을 후원하고 싶은 분들을 위한 상품입니다!\n\n[b]안내:[/b] 이 DLC를 구매해야만 이용할 수 있는 콘텐츠를 따로 만들지 않았습니다. 게임 내 변경 사항은 메인 메뉴에 작은 미다스 페글린 조각상을 추가하는 것뿐입니다!",
+      "status": "draft",
+      "sourceFingerprint": "45cd3e5481b38019d9fa1ed144a864aa45261b6be7ae7f7507c2adf69bdaed75",
+      "comment": "Draft storefront copy. Uses 후원자 팩 for supporter pack and explains that the DLC adds no gated gameplay content."
+    },
+    "peglin_supporter_dlc_desc_short": {
+      "translation": "이 팩은 페글린의 지속적인 개발과 앞으로 출시될 게임의 개발을 후원합니다!",
+      "status": "draft",
+      "sourceFingerprint": "5c1e6fbd27562189947dd1c9be05d1240b9d165c12307278c6556a647700fe94",
+      "comment": "Draft storefront copy; future games is kept plural and general."
+    },
+    "Relics/damage_creates_lightning_name": {
+      "translation": "번개 연고",
+      "status": "draft",
+      "sourceFingerprint": "fdec2580ed3f03398f18381f2c7f0b7fada53d82b5f189afa3891c5bbf13dbdd",
+      "comment": "Dev Notes describe a pun on Greased Lightning and allow a flexible name; 번개 연고 is a concise fantasy item name."
+    },
+    "Relics/damage_creates_lightning_desc": {
+      "translation": "<style=damage>체력을 {[DMG_LIGHT_SLIME]} 잃을 때마다</style> 보드에 {[DMG_LIGHT_SLIME_COUNT]}개의 <style=upgr_slime>벼락 슬라임</style>을 추가합니다. <style=upgr_slime>벼락 슬라임</style>이 묻은 <sprite name=\"PEG\">은 <style=durable>견고</style>하며, <style=hit>명중할</style> 때 주변 <sprite name=\"PEG\">를 감전시킵니다.",
+      "status": "draft",
+      "sourceFingerprint": "7ff122d6a5917328021e779ce27a6b4840a283c2ca24d1bcebc80e1f76c63a8f",
+      "comment": "Reuses official Korean terms for lightning slime, Durable, and Hit."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/01/Dialogue Text": {
+      "translation": "어둠 속을 나아가던 중 <style=echo><dangle>신비로운 목소리</dangle></style>가 머릿속에 울리고, 위안을 주는 존재가 당신 앞에 나타납니다.\n\n“여기까지 정말 잘 왔구나, 작은 친구야. 라디아의 잘못을 바로잡으려 애쓰고, 해야 할 일을 해 줘서 고맙구나…”\n",
+      "status": "draft",
+      "sourceFingerprint": "4e0e31f6cb90082df86f14db5d26365195ff29a6dc538f843fb17a9f22e7dfea",
+      "comment": "Draft story text; keeps a gentle, familiar voice and the source paragraph break."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/02/Dialogue Text": {
+      "translation": "“여기서 쓰러지더라도, 너는 이미 어둠을 막아 내고 라디아 주민들을 지키는 데 큰일을 해냈다는 걸 알아 두렴.\n\n마지막 적과 맞서기 전에…”",
+      "status": "draft",
+      "sourceFingerprint": "90b0f1f8f7d53b766e5a1715459f0a60bd624be6ae84dac4f8c7578290f1ca24",
+      "comment": "Draft story text; keeps the comforting informal voice and the source paragraph break."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/03/Dialogue Text": {
+      "translation": "“...도움을 받아 보겠니?”",
+      "status": "draft",
+      "sourceFingerprint": "16f2de49d28dd413ea0a8626a9d2713f3da961c435aadd54b0e16dc15a997d7e",
+      "comment": "Informal offer chosen to match the speaker addressing the player as a little friend."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/04/Dialogue Text": {
+      "translation": "활력 (<style=heal>최대 체력 +[var=maxHPAdd]</style>)",
+      "status": "draft",
+      "sourceFingerprint": "80dbe78b3c457f02219c08e4e0e2b322175591aab29d00f41414bb1625bef340",
+      "comment": "Draft choice label; preserves the [var=maxHPAdd] variable exactly."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/05/Dialogue Text": {
+      "translation": "명료함 (<style=heal2>제거할 구슬을 최대 3개 선택</style>)",
+      "status": "draft",
+      "sourceFingerprint": "b797c9682c5102b8fe7690d0122a7ede781978be1eb0cffe235412356265fde8",
+      "comment": "Draft choice label; uses the established Korean term 구슬."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/06/Dialogue Text": {
+      "translation": "안정 (<style=heal2>업그레이드 가능한 구슬을 모두 업그레이드</style>)",
+      "status": "draft",
+      "sourceFingerprint": "fbf49d6207413160bcf0b1871d5522e213926faeb1c1a4f23b2253f4110c7025",
+      "comment": "Draft choice label; uses the established Korean term 구슬."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/07/Dialogue Text": {
+      "translation": "창의력 (<style=heal2>희귀한 유물 3개 중 1개 추가</style>)",
+      "status": "draft",
+      "sourceFingerprint": "85e3833c8f9dc390c5afc7e38fef6826c767169d75216c0e0dd85fe0733ab3c1",
+      "comment": "The wording does not establish whether the player chooses from three relics; confirm the interaction before approval."
+    },
+    "Dialogue System/Conversation/Scenario.Act4.FriendlyPresence/Entry/08/Dialogue Text": {
+      "translation": "그 존재는 당신에게 힘을 내려 주고, 에너지는 어둠 속으로 흩어집니다.",
+      "status": "draft",
+      "sourceFingerprint": "02205a35d2fc0ff7eb4a2df12d47053779bcdd39dccc81fe4a87b6bbe30ffd6a",
+      "comment": "Draft story text; describes the presence leaving after granting strength."
+    }
+  }
 }
