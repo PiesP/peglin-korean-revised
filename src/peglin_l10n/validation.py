@@ -34,6 +34,73 @@ def protected_tokens(text: str) -> list[str]:
     return TOKEN_PATTERN.findall(text)
 
 
+def _markup_marker(token: str) -> tuple[str, str, bool] | None:
+    if token.startswith("<") and token.endswith(">"):
+        contents = token[1:-1]
+        if contents.startswith("/"):
+            tag_name = contents[1:]
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.:-]*", tag_name):
+                return None
+            return ("angle", tag_name.casefold(), True)
+        contents = contents.strip()
+        if contents.endswith("/"):
+            return None
+        if contents.startswith("#"):
+            return ("angle", "color", False)
+        tag_parts = contents.split("=", 1)[0].split(None, 1)
+        if not tag_parts or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.:-]*", tag_parts[0]):
+            return None
+        tag_name = tag_parts[0].casefold()
+        if tag_name == "sprite":
+            return None
+        return ("angle", tag_name, False)
+
+    if token.startswith("[") and token.endswith("]"):
+        contents = token[1:-1].strip()
+        if contents.startswith("/"):
+            return ("square", contents[1:].casefold(), True)
+        if "=" not in contents:
+            return ("square", contents.casefold(), False)
+        return None
+
+    if token.startswith("{") and token.endswith("}"):
+        contents = token[1:-1].strip()
+        if contents.startswith("/"):
+            return ("brace", contents[1:].casefold(), True)
+        if contents.startswith("[") or "=" in contents or contents.isdecimal():
+            return None
+        return ("brace", contents.casefold(), False)
+    return None
+
+
+def _markup_is_balanced(text: str) -> bool:
+    tokens = protected_tokens(text)
+    closing_markers = {
+        marker[:2]
+        for token in tokens
+        if (marker := _markup_marker(token)) is not None and marker[2]
+    }
+    stack: list[tuple[str, str]] = []
+    for token in tokens:
+        marker = _markup_marker(token)
+        if marker is None:
+            if (
+                token.startswith("<")
+                and token.endswith(">")
+                and token[1:-1].lstrip().startswith("/")
+            ):
+                return False
+            continue
+        delimiter, tag_name, is_closing = marker
+        key = (delimiter, tag_name)
+        if is_closing:
+            if not stack or stack.pop() != key:
+                return False
+        elif key in closing_markers:
+            stack.append(key)
+    return not stack
+
+
 def read_terms_csv(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
@@ -85,6 +152,15 @@ def _check_translation(
                 "error",
                 "PROTECTED_TOKEN_MISMATCH",
                 f"{source_name} protected tokens differ: source={expected!r}, translation={actual!r}.",
+                term,
+            )
+        )
+    if not _markup_is_balanced(translation):
+        issues.append(
+            Issue(
+                "error",
+                "UNBALANCED_MARKUP",
+                f"{source_name} has unbalanced markup tags.",
                 term,
             )
         )
