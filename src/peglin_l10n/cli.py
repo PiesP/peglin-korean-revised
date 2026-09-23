@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from .candidate import create_client_candidate
 from .diffing import compare_snapshots
 from .extract import (
     DEFAULT_GAME_ROOT,
@@ -68,6 +69,56 @@ def _parser() -> argparse.ArgumentParser:
         default=PROJECT_ROOT / "translation" / "glossary.csv",
     )
     build_patch.add_argument(
+        "--overrides",
+        type=Path,
+        default=PROJECT_ROOT / "translation" / "overrides.json",
+    )
+
+    build_candidate = subparsers.add_parser(
+        "build-candidate",
+        help="build a source-bound BepInEx plugin candidate for the installed Peglin game",
+    )
+    build_candidate.add_argument(
+        "--game-root",
+        type=Path,
+        default=Path(os.environ.get("PEGLIN_GAME_ROOT", DEFAULT_GAME_ROOT)),
+        help="Peglin installation directory",
+    )
+    build_candidate.add_argument(
+        "--extracted-dir",
+        type=Path,
+        default=PROJECT_ROOT / "extracted",
+        help="root directory for immutable source snapshots",
+    )
+    build_candidate.add_argument(
+        "--output-dir",
+        type=Path,
+        default=PROJECT_ROOT / "patches" / "generated",
+        help="directory for the generated JSON overlay",
+    )
+    build_candidate.add_argument(
+        "--candidate-dir",
+        type=Path,
+        default=PROJECT_ROOT / "patches" / "candidates",
+        help="directory for the installable ZIP candidate",
+    )
+    build_candidate.add_argument(
+        "--plugin-project",
+        type=Path,
+        default=PROJECT_ROOT / "plugin" / "PeglinKoreanRevised.csproj",
+        help="BepInEx plugin project to compile",
+    )
+    build_candidate.add_argument(
+        "--dotnet",
+        default="dotnet",
+        help="path or command name for the .NET SDK",
+    )
+    build_candidate.add_argument(
+        "--glossary",
+        type=Path,
+        default=PROJECT_ROOT / "translation" / "glossary.csv",
+    )
+    build_candidate.add_argument(
         "--overrides",
         type=Path,
         default=PROJECT_ROOT / "translation" / "overrides.json",
@@ -177,37 +228,44 @@ def _snapshot_for_build(data: InstallationData, extracted_dir: Path) -> Path:
     )
 
 
+def _create_current_overlay(
+    args: argparse.Namespace,
+) -> tuple[InstallationData, Path, Path, dict[str, object]]:
+    data = load_installation(args.game_root)
+    if not isinstance(data.build_id, str) or not data.build_id.strip():
+        raise ExtractionError("A Steam build ID is required to produce a source-bound overlay.")
+    snapshot = _snapshot_for_build(data, args.extracted_dir)
+    manifest = json.loads((snapshot / "source.json").read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("Source manifest root must be a JSON object.")
+    build_id = manifest.get("steamBuildId")
+    if (
+        not isinstance(build_id, str)
+        or re.fullmatch(r"[A-Za-z0-9._-]{1,64}", build_id) is None
+    ):
+        raise ValueError("Source manifest steamBuildId cannot be used in a patch filename.")
+    asset_sha256 = manifest.get("assetSha256")
+    if (
+        not isinstance(asset_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", asset_sha256) is None
+    ):
+        raise ValueError("Source manifest assetSha256 must be a lowercase SHA-256 digest.")
+    output_path = args.output_dir.expanduser().resolve() / (
+        f"peglin-ko-{build_id}-{asset_sha256[:8]}.json"
+    )
+    result = create_overlay_patch(
+        snapshot / "terms.csv",
+        snapshot / "source.json",
+        args.overrides,
+        args.glossary,
+        output_path,
+    )
+    return data, snapshot, output_path, result
+
+
 def _run_build_patch(args: argparse.Namespace) -> int:
     try:
-        data = load_installation(args.game_root)
-        if not isinstance(data.build_id, str) or not data.build_id.strip():
-            raise ExtractionError("A Steam build ID is required to produce a source-bound overlay.")
-        snapshot = _snapshot_for_build(data, args.extracted_dir)
-        manifest = json.loads((snapshot / "source.json").read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict):
-            raise ValueError("Source manifest root must be a JSON object.")
-        build_id = manifest.get("steamBuildId")
-        if (
-            not isinstance(build_id, str)
-            or re.fullmatch(r"[A-Za-z0-9._-]{1,64}", build_id) is None
-        ):
-            raise ValueError("Source manifest steamBuildId cannot be used in a patch filename.")
-        asset_sha256 = manifest.get("assetSha256")
-        if (
-            not isinstance(asset_sha256, str)
-            or re.fullmatch(r"[0-9a-f]{64}", asset_sha256) is None
-        ):
-            raise ValueError("Source manifest assetSha256 must be a lowercase SHA-256 digest.")
-        output_path = args.output_dir.expanduser().resolve() / (
-            f"peglin-ko-{build_id}-{asset_sha256[:8]}.json"
-        )
-        result = create_overlay_patch(
-            snapshot / "terms.csv",
-            snapshot / "source.json",
-            args.overrides,
-            args.glossary,
-            output_path,
-        )
+        _, snapshot, output_path, result = _create_current_overlay(args)
     except (ExtractionError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Patch generation stopped safely: {exc}", file=sys.stderr)
         return 2
@@ -215,6 +273,41 @@ def _run_build_patch(args: argparse.Namespace) -> int:
     print(f"Patch status: {result['status']}")
     print(f"Translated terms: {len(result['terms'])}")
     print(f"Patch: {output_path}")
+    return 0
+
+
+def _run_build_candidate(args: argparse.Namespace) -> int:
+    try:
+        game_root = args.game_root.expanduser().resolve()
+        output_paths = (
+            ("extracted snapshots", args.extracted_dir),
+            ("JSON overlay", args.output_dir),
+            ("candidate ZIP", args.candidate_dir),
+            ("plugin build", args.plugin_project.parent),
+        )
+        for output_name, output_path in output_paths:
+            resolved_path = output_path.expanduser().resolve()
+            if resolved_path == game_root or resolved_path.is_relative_to(game_root):
+                raise ValueError(
+                    f"The {output_name} path must be outside the Peglin installation directory."
+                )
+
+        data, snapshot, overlay_path, result = _create_current_overlay(args)
+        candidate_path = create_client_candidate(
+            overlay_path,
+            data.game_root,
+            args.candidate_dir,
+            args.plugin_project,
+            args.dotnet,
+        )
+    except (ExtractionError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Client candidate generation stopped safely: {exc}", file=sys.stderr)
+        return 2
+    print(f"Snapshot: {snapshot}")
+    print(f"Patch status: {result['status']}")
+    print(f"Translated terms: {len(result['terms'])}")
+    print(f"Overlay: {overlay_path}")
+    print(f"Candidate: {candidate_path}")
     return 0
 
 
@@ -291,6 +384,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_extract(args)
         if args.command == "build-patch":
             return _run_build_patch(args)
+        if args.command == "build-candidate":
+            return _run_build_candidate(args)
         if args.command == "lint-overrides":
             return _run_lint_overrides(args)
         if args.command == "validate":

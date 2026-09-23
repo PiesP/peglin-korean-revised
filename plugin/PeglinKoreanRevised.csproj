@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net46</TargetFramework>
+    <AssemblyName>PeglinKoreanRevised</AssemblyName>
+    <RootNamespace>PeglinKoreanRevised</RootNamespace>
+    <Version>0.1.0</Version>
+    <LangVersion>9.0</LangVersion>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <PeglinManagedDir Condition="'$(PeglinManagedDir)' == ''"></PeglinManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PeglinManagedDir)' != ''">
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(PeglinManagedDir)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(PeglinManagedDir)/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(PeglinManagedDir)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(PeglinManagedDir)/Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="netstandard">
+      <HintPath>$(PeglinManagedDir)/netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="RequirePeglinManagedAssemblies" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(PeglinManagedDir)' == ''" Text="Set PeglinManagedDir to Peglin_Data/Managed before building." />
+    <Error Condition="!Exists('$(PeglinManagedDir)/Assembly-CSharp.dll')" Text="Peglin Assembly-CSharp.dll was not found under PeglinManagedDir." />
+    <Error Condition="!Exists('$(PeglinManagedDir)/Newtonsoft.Json.dll')" Text="Peglin Newtonsoft.Json.dll was not found under PeglinManagedDir." />
+  </Target>
+</Project>
