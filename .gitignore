@@ -6,3 +6,6 @@ __pycache__/
 /extracted/
 /reports/generated/
 /patches/generated/
+/patches/candidates/
+/plugin/bin/
+/plugin/obj/

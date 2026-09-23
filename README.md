@@ -83,7 +83,7 @@ uv run peglin-l10n fingerprint \
   --term 'Relics/damage_creates_lightning_name'
 ```
 
-## Build a Korean overlay
+## Build the Korean overlay
 
 Run the end-to-end local pipeline from the installed game through a deterministic
 JSON overlay:
@@ -102,6 +102,26 @@ status, source fingerprints, and source build/hash metadata. Draft entries keep
 the overall artifact marked `draft`. The command never writes to the Steam
 installation or changes `resources.assets`.
 
+## Build a client candidate
+
+Create an installable BepInEx ZIP for the currently installed game:
+
+```bash
+uv run peglin-l10n build-candidate
+```
+
+This command builds the JSON overlay, compiles the BepInEx Mono plugin against
+the installed game's managed assemblies, and writes a versioned ZIP under
+`patches/candidates/`. The .NET SDK is required. The ZIP contains the plugin,
+the JSON overlay, an integrity manifest, and install instructions. The plugin
+checks the packaged plugin and overlay hashes, then verifies both the installed
+`resources.assets` and `Assembly-CSharp.dll` SHA-256 values before applying any
+changes. It updates the I2 Korean table in memory; it does not install BepInEx
+or modify game files.
+
+See [Client patch strategy](docs/client-patch-strategy.md) for the method
+evaluation, requirements, and installation instructions.
+
 Run the installation-independent override structure check with:
 
 ```bash
@@ -113,14 +133,15 @@ uv run peglin-l10n lint-overrides
 The `Validate translations` workflow runs on pull requests and pushes to
 `master` using a GitHub-hosted runner. It compiles the Python package and checks
 override metadata. It cannot verify source fingerprints or protected text
-tokens without the local game snapshot; `build-patch` performs those checks.
+tokens without the local game snapshot; `build-patch` and `build-candidate`
+perform those checks locally. The manual candidate workflow runs the latter.
 
-The `Build Korean overlay` workflow runs only when manually dispatched from
-`master`, on a repository-scoped WSL self-hosted runner labeled
-`peglin-game`. It creates the same ignored JSON file and uploads it as a
-14-day Actions artifact. The runner can access this machine's Steam install, so
-keep the repository private and do not add pull request or other untrusted-code
-triggers to that runner workflow.
+The `Build Peglin Korean client candidate` workflow runs only when manually
+dispatched from `master`, on a repository-scoped WSL self-hosted runner labeled
+`peglin-game`. It builds the ignored JSON overlay and installable ZIP, then
+uploads both as a 14-day Actions artifact. The runner can access this machine's
+Steam install, so keep the repository private and do not add pull request or
+other untrusted-code triggers to that runner workflow.
 
 ## Review workflow
 
@@ -150,5 +171,5 @@ An override entry has this shape:
 }
 ```
 
-This project does not install a mod loader or patch `resources.assets`; runtime
-integration is a separate phase.
+The project does not install a mod loader or patch `resources.assets`. Client
+integration is packaged as an optional BepInEx candidate for manual review.

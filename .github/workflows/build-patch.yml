@@ -1,4 +1,4 @@
-name: Build Korean overlay
+name: Build Peglin Korean client candidate
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: peglin-overlay-build
+  group: peglin-client-candidate-build
   cancel-in-progress: false
 
 jobs:
@@ -29,14 +29,20 @@ jobs:
         run: uv python install 3.11
       - name: Install locked dependencies
         run: uv sync --locked --python 3.11
-      - name: Extract game data and build overlay
+      - name: Check .NET SDK
+        run: dotnet --info
+      - name: Build source-bound client candidate
         run: >-
-          uv run --python 3.11 peglin-l10n build-patch
+          uv run --python 3.11 peglin-l10n build-candidate
           --game-root "/mnt/c/Program Files (x86)/Steam/steamapps/common/Peglin"
-      - name: Upload JSON overlay
+          --output-dir "$RUNNER_TEMP/peglin-candidate/overlay"
+          --candidate-dir "$RUNNER_TEMP/peglin-candidate/package"
+      - name: Upload JSON overlay and installable candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: peglin-korean-overlay
-          path: patches/generated/*.json
+          name: peglin-korean-client-candidate
+          path: |
+            ${{ runner.temp }}/peglin-candidate/overlay/*.json
+            ${{ runner.temp }}/peglin-candidate/package/*.zip
           if-no-files-found: error
           retention-days: 14
