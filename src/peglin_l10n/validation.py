@@ -15,7 +15,7 @@ from .fingerprints import source_fingerprint
 TOKEN_PATTERN = re.compile(
     r"<[^>\r\n]+>"
     r"|\{\[[^\]\r\n]+\]\}"
-    r"|\[/?[A-Za-z_][A-Za-z0-9_.:-]*\]"
+    r"|\[/?[A-Za-z_][A-Za-z0-9_.:-]*(?:=[^\]\r\n]*)?\]"
     r"|\{(?:/?[A-Za-z_][A-Za-z0-9_.-]*(?:=[^{}\r\n]*)?|\d+)\}"
     r"|%(?:\d+\$)?[-+#0 ]*\d*(?:\.\d+)?[a-zA-Z%]"
 )
