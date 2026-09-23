@@ -1,1 +1,25 @@
 Term,PreferredKorean,PartOfSpeech,Notes,Status
+orb,구슬,noun,Existing official Korean usage.,established
+orbs,구슬,noun,Existing official Korean usage.,established
+relic,유물,noun,Existing official Korean usage.,established
+relics,유물,noun,Existing official Korean usage.,established
+hit more pegs,페그를 더 많이 맞힐수록,phrase,Existing official usage for peg combined with natural Korean action wording.,established
+Pachinko,파칭코,noun,Existing official Korean usage.,established
+bombs,폭탄,noun,Existing official Korean usage.,established
+Max HP,최대 체력,stat,Existing official Korean usage.,established
+health,체력,noun,Existing official Korean usage.,established
+board,보드,noun,Existing official Korean usage for this game surface.,established
+lightning slime,벼락 슬라임,noun,Existing official Korean usage.,established
+Durable,견고,keyword,Existing official Korean usage.,established
+<style=hit>Hit</style>,명중,keyword,Existing official Korean keyword in the Hit style tag.,established
+rare relics,희귀한 유물,phrase,Existing official Korean usage.,established
+crit potions,치명타 물약,phrase,Draft compound based on established Crit and Potion terms.,draft
+refresh potions,새로고침 물약,phrase,Draft compound based on established Refresh and Potion terms.,draft
+Lightning Grease,번개 연고,item name,Dev Notes describe a flexible pun-based name.,draft
+supporter's pack,후원자 팩,phrase,Draft storefront terminology.,draft
+ethereal voice,신비로운 목소리,phrase,Draft story terminology.,draft
+comforting presence,위안을 주는 존재,phrase,Draft story terminology.,draft
+Vitality,활력,choice label,Draft Act 4 choice name.,draft
+Clarity,명료함,choice label,Draft Act 4 choice name.,draft
+Stability,안정,choice label,Draft Act 4 choice name.,draft
+Creativity,창의력,choice label,Draft Act 4 choice name.,draft
