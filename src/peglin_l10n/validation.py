@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -78,7 +79,7 @@ def _check_translation(
     issues: list[Issue] = []
     expected = protected_tokens(source)
     actual = protected_tokens(translation)
-    if expected != actual:
+    if Counter(expected) != Counter(actual):
         issues.append(
             Issue(
                 "error",
