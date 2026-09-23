@@ -86,13 +86,14 @@ uv run peglin-l10n fingerprint \
 ## Review workflow
 
 1. Keep one extracted source snapshot per Steam build.
-2. Review missing Korean, changed source text, and existing Korean in context
-   with the English and DevNotes columns.
-3. Put proposed Korean changes in `translation/overrides.json` with status
-   `draft`. Keep them as drafts until the wording, protected tokens, and
-   in-game context have been reviewed. Approved entries also need a matching
-   `reviewedBuildId` from the source manifest. Do not copy the full official
-   table into an override file.
+2. Review English, existing Korean, DevNotes, and I2 descriptions together.
+   Re-translate an existing Korean value when it is inaccurate, unclear, or
+   unnatural; do not preserve it solely because it is already present.
+3. Store proposed Korean text in `translation/overrides.json`. It can contain
+   selected edits or a complete retranslation, but should not mirror the
+   official Korean column. Keep entries at status `draft` until wording,
+   protected tokens, and in-game context have been reviewed. Approved entries
+   also need a matching `reviewedBuildId` from the source manifest.
 4. Run the validator and compare consecutive source snapshots before deciding
    which overrides need another review.
 
@@ -103,7 +104,7 @@ An override entry has this shape:
 
 ```json
 {
-  "translation": "reviewed Korean text",
+  "translation": "proposed Korean text",
   "status": "draft",
   "sourceFingerprint": "value from the fingerprint or diff command",
   "comment": "translation rationale or context"
