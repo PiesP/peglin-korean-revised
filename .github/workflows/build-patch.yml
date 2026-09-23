@@ -20,20 +20,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version: "3.11"
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
         with:
           version: "0.9.7"
           enable-cache: true
+      - name: Install Python 3.11
+        run: uv python install 3.11
       - name: Install locked dependencies
-        run: uv sync --locked
+        run: uv sync --locked --python 3.11
       - name: Extract game data and build overlay
         run: >-
-          uv run peglin-l10n build-patch
+          uv run --python 3.11 peglin-l10n build-patch
           --game-root "/mnt/c/Program Files (x86)/Steam/steamapps/common/Peglin"
       - name: Upload JSON overlay
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
