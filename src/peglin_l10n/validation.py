@@ -151,6 +151,124 @@ def read_overrides(path: Path) -> dict[str, Any]:
     return terms
 
 
+def lint_overrides(path: Path) -> tuple[dict[str, int], list[Issue]]:
+    """Check tracked override metadata without requiring a local game snapshot."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    issues: list[Issue] = []
+    if not isinstance(data, dict):
+        issues.append(
+            Issue("error", "INVALID_OVERRIDES", "Override file root must be a JSON object.")
+        )
+        return {"overrides": 0, "draft": 0, "approved": 0, "errors": 1}, issues
+
+    if type(data.get("schemaVersion")) is not int or data.get("schemaVersion") != 1:
+        issues.append(
+            Issue("error", "INVALID_SCHEMA_VERSION", "Override schemaVersion must be 1.")
+        )
+    if data.get("game") != "Peglin":
+        issues.append(Issue("error", "INVALID_GAME", "Override game must be Peglin."))
+    if data.get("language") != "ko":
+        issues.append(Issue("error", "INVALID_LANGUAGE", "Override language must be ko."))
+
+    terms = data.get("terms")
+    if not isinstance(terms, dict):
+        issues.append(
+            Issue("error", "INVALID_TERMS", "Override file must contain a terms object.")
+        )
+        terms = {}
+    elif not terms:
+        issues.append(
+            Issue("error", "EMPTY_OVERRIDES", "Override terms object must not be empty.")
+        )
+
+    status_counts = {"draft": 0, "approved": 0}
+    for key, item in terms.items():
+        term = key if isinstance(key, str) else str(key)
+        if not isinstance(key, str) or not key.strip() or key != key.strip():
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_TERM_KEY",
+                    "Override term keys must be nonempty strings without surrounding whitespace.",
+                    term,
+                )
+            )
+            continue
+        if not isinstance(item, dict):
+            issues.append(
+                Issue("error", "INVALID_OVERRIDE", "Each override must be an object.", term)
+            )
+            continue
+        translation = item.get("translation")
+        if not isinstance(translation, str) or not translation.strip():
+            issues.append(
+                Issue("error", "EMPTY_OVERRIDE", "Override translation must be nonempty.", term)
+            )
+        status = item.get("status")
+        if not isinstance(status, str) or status not in status_counts:
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_OVERRIDE_STATUS",
+                    "Override status must be draft or approved.",
+                    term,
+                )
+            )
+        else:
+            status_counts[status] += 1
+        fingerprint = item.get("sourceFingerprint")
+        if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_OVERRIDE_FINGERPRINT",
+                    "Override sourceFingerprint must be a lowercase SHA-256 hex digest.",
+                    term,
+                )
+            )
+        reviewed_build = item.get("reviewedBuildId")
+        if reviewed_build is not None and (
+            not isinstance(reviewed_build, str) or not reviewed_build.strip()
+        ):
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_OVERRIDE_BUILD_ID",
+                    "Override reviewedBuildId must be a nonempty string when present.",
+                    term,
+                )
+            )
+        if status == "approved" and (
+            not isinstance(reviewed_build, str) or not reviewed_build.strip()
+        ):
+            issues.append(
+                Issue(
+                    "error",
+                    "OVERRIDE_BUILD_UNBOUND",
+                    "Approved override has no reviewedBuildId.",
+                    term,
+                )
+            )
+        comment = item.get("comment")
+        if comment is not None and not isinstance(comment, str):
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_OVERRIDE_COMMENT",
+                    "Override comment must be a string when present.",
+                    term,
+                )
+            )
+
+    summary = {
+        "overrides": len(terms),
+        "draft": status_counts["draft"],
+        "approved": status_counts["approved"],
+        "errors": sum(issue.severity == "error" for issue in issues),
+    }
+    return summary, issues
+
+
 def _check_translation(
     source: str, translation: str, term: str, source_name: str
 ) -> list[Issue]:

@@ -5,3 +5,4 @@ __pycache__/
 # Game-derived localization data stays on this machine unless explicitly reviewed.
 /extracted/
 /reports/generated/
+/patches/generated/

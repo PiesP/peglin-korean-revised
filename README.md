@@ -25,7 +25,7 @@ From this directory, install the pinned extractor dependency into a local
 virtual environment:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
 ## Extract the current game table
@@ -82,6 +82,45 @@ uv run peglin-l10n fingerprint \
   --terms extracted/BUILD_ID/terms.csv \
   --term 'Relics/damage_creates_lightning_name'
 ```
+
+## Build a Korean overlay
+
+Run the end-to-end local pipeline from the installed game through a deterministic
+JSON overlay:
+
+```bash
+uv run peglin-l10n build-patch
+```
+
+The command reads the installation path above (or `PEGLIN_GAME_ROOT`), extracts
+the current source table, reuses a snapshot only when it exactly matches the
+installed data, validates the translations and source fingerprints, then writes
+`patches/generated/peglin-ko-<build-id>-<asset-hash-prefix>.json`. Set
+`--game-root`, `--extracted-dir`, `--output-dir`, `--glossary`, or `--overrides`
+to select different paths. A patch contains the term keys, Korean text, review
+status, source fingerprints, and source build/hash metadata. Draft entries keep
+the overall artifact marked `draft`. The command never writes to the Steam
+installation or changes `resources.assets`.
+
+Run the installation-independent override structure check with:
+
+```bash
+uv run peglin-l10n lint-overrides
+```
+
+## GitHub automation
+
+The `Validate translations` workflow runs on pull requests and pushes to
+`master` using a GitHub-hosted runner. It compiles the Python package and checks
+override metadata. It cannot verify source fingerprints or protected text
+tokens without the local game snapshot; `build-patch` performs those checks.
+
+The `Build Korean overlay` workflow runs only when manually dispatched from
+`master`, on a repository-scoped WSL self-hosted runner labeled
+`peglin-game`. It creates the same ignored JSON file and uploads it as a
+14-day Actions artifact. The runner can access this machine's Steam install, so
+keep the repository private and do not add pull request or other untrusted-code
+triggers to that runner workflow.
 
 ## Review workflow
 
