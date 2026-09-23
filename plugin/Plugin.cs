@@ -5,19 +5,22 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 using BepInEx;
 using I2.Loc;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace PeglinKoreanRevised
 {
-    [BepInPlugin(PluginGuid, "Peglin Korean Revised", "0.1.0")]
+    [BepInPlugin(PluginGuid, "Peglin Korean Revised", "0.1.1")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string PluginGuid = "piesp.peglin.koreanrevised";
         private const int OverlaySchemaVersion = 1;
+        private const int SourceHashBufferSize = 1024 * 1024;
+        private const float SourceHashTimeoutSeconds = 120f;
+        private const float SourceHashProgressIntervalSeconds = 10f;
         private const string PluginPathInPackage =
             "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll";
         private const string OverlayPathInPackage =
@@ -47,6 +50,7 @@ namespace PeglinKoreanRevised
                     "Loaded " + translations.Count + " Korean terms for Steam build " +
                     expectedSteamBuildId + " and source asset " + expectedAssetSha256 + ".");
                 SceneManager.sceneLoaded += OnSceneLoaded;
+                Logger.LogInfo("Scheduling Peglin source verification.");
                 StartCoroutine(VerifySourceAndApply());
             }
             catch (Exception exception)
@@ -156,6 +160,7 @@ namespace PeglinKoreanRevised
 
         private System.Collections.IEnumerator VerifySourceAndApply()
         {
+            Logger.LogInfo("Starting Peglin source file verification.");
             string assetPath = Path.Combine(
                 Paths.GameRootPath,
                 "Peglin_Data",
@@ -176,45 +181,110 @@ namespace PeglinKoreanRevised
                 yield break;
             }
 
-            Task<string> assetHashTask = Task.Run(() => ComputeSha256(assetPath));
-            Task<string> assemblyHashTask = Task.Run(() => ComputeSha256(assemblyPath));
-            while (!assetHashTask.IsCompleted || !assemblyHashTask.IsCompleted)
+            SourceFileHasher assetHasher;
+            Exception openError;
+            if (!SourceFileHasher.TryCreate(assetPath, SourceHashBufferSize, out assetHasher, out openError))
             {
-                yield return null;
-            }
-
-            if (assetHashTask.IsFaulted || assemblyHashTask.IsFaulted)
-            {
-                Logger.LogError(
-                    "Could not verify the Peglin source files: " +
-                    (assetHashTask.Exception ?? assemblyHashTask.Exception));
+                Logger.LogError("Could not open Peglin resources.assets for verification: " + openError);
                 yield break;
             }
 
-            if (!string.Equals(assetHashTask.Result, expectedAssetSha256, StringComparison.OrdinalIgnoreCase))
+            SourceFileHasher assemblyHasher;
+            if (!SourceFileHasher.TryCreate(
+                    assemblyPath,
+                    SourceHashBufferSize,
+                    out assemblyHasher,
+                    out openError))
+            {
+                assetHasher.Dispose();
+                Logger.LogError("Could not open Peglin Assembly-CSharp.dll for verification: " + openError);
+                yield break;
+            }
+
+            string assetHash = null;
+            string assemblyHash = null;
+            float startedAt = Time.realtimeSinceStartup;
+            float nextProgressAt = startedAt + SourceHashProgressIntervalSeconds;
+            Logger.LogInfo(
+                "Hashing resources.assets (" + assetHasher.Length + " bytes) and " +
+                "Assembly-CSharp.dll (" + assemblyHasher.Length + " bytes) in " +
+                (SourceHashBufferSize / (1024 * 1024)) + " MiB chunks.");
+
+            try
+            {
+                while (!assetHasher.IsComplete || !assemblyHasher.IsComplete)
+                {
+                    float now = Time.realtimeSinceStartup;
+                    if (now - startedAt >= SourceHashTimeoutSeconds)
+                    {
+                        Logger.LogError(
+                            "Peglin source verification exceeded " + SourceHashTimeoutSeconds +
+                            " seconds; no translations were applied. Last progress: " +
+                            assetHasher.Progress + " resources.assets, " +
+                            assemblyHasher.Progress + " Assembly-CSharp.dll.");
+                        yield break;
+                    }
+
+                    string readError;
+                    if (!assetHasher.IsComplete && !assetHasher.ReadNextChunk(out readError))
+                    {
+                        Logger.LogError("Could not read Peglin resources.assets: " + readError);
+                        yield break;
+                    }
+
+                    if (!assemblyHasher.IsComplete && !assemblyHasher.ReadNextChunk(out readError))
+                    {
+                        Logger.LogError("Could not read Peglin Assembly-CSharp.dll: " + readError);
+                        yield break;
+                    }
+
+                    now = Time.realtimeSinceStartup;
+                    if (now >= nextProgressAt)
+                    {
+                        Logger.LogInfo(
+                            "Peglin source verification progress: " +
+                            assetHasher.Progress + " resources.assets, " +
+                            assemblyHasher.Progress + " Assembly-CSharp.dll.");
+                        nextProgressAt = now + SourceHashProgressIntervalSeconds;
+                    }
+
+                    yield return null;
+                }
+
+                assetHash = assetHasher.Digest;
+                assemblyHash = assemblyHasher.Digest;
+            }
+            finally
+            {
+                assetHasher.Dispose();
+                assemblyHasher.Dispose();
+            }
+
+            if (!string.Equals(assetHash, expectedAssetSha256, StringComparison.OrdinalIgnoreCase))
             {
                 Logger.LogError(
                     "The installed Peglin source asset does not match this candidate. " +
-                    "Expected " + expectedAssetSha256 + ", found " + assetHashTask.Result +
+                    "Expected " + expectedAssetSha256 + ", found " + assetHash +
                     ". No translations were applied.");
                 yield break;
             }
 
-            if (!string.Equals(assemblyHashTask.Result, expectedAssemblySha256, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(assemblyHash, expectedAssemblySha256, StringComparison.OrdinalIgnoreCase))
             {
                 Logger.LogError(
                     "The installed Peglin Assembly-CSharp.dll does not match this candidate. " +
-                    "Expected " + expectedAssemblySha256 + ", found " + assemblyHashTask.Result +
+                    "Expected " + expectedAssemblySha256 + ", found " + assemblyHash +
                     ". No translations were applied.");
                 yield break;
             }
 
             Logger.LogInfo(
-                "Verified resources.assets SHA-256 " + assetHashTask.Result +
-                " and Assembly-CSharp.dll SHA-256 " + assemblyHashTask.Result + ".");
+                "Verified resources.assets SHA-256 " + assetHash +
+                " and Assembly-CSharp.dll SHA-256 " + assemblyHash + ".");
             sourceVerified = true;
             int totalApplied = 0;
             int stableFrames = 0;
+            Logger.LogInfo("Waiting for the Korean I2 Localization source to become available.");
             for (int frame = 0; frame < 300 && stableFrames < 30; frame++)
             {
                 LocalizationManager.InitializeIfNeeded();
@@ -377,6 +447,109 @@ namespace PeglinKoreanRevised
             using (SHA256 sha256 = SHA256.Create())
             {
                 byte[] hash = sha256.ComputeHash(stream);
+                StringBuilder result = new StringBuilder(hash.Length * 2);
+                foreach (byte value in hash)
+                {
+                    result.Append(value.ToString("x2"));
+                }
+
+                return result.ToString();
+            }
+        }
+
+        private sealed class SourceFileHasher : IDisposable
+        {
+            private readonly FileStream stream;
+            private readonly SHA256 sha256;
+            private readonly byte[] buffer;
+
+            private SourceFileHasher(string path, int bufferSize)
+            {
+                stream = File.OpenRead(path);
+                try
+                {
+                    Length = stream.Length;
+                    sha256 = SHA256.Create();
+                    buffer = new byte[bufferSize];
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
+            }
+
+            public long Length { get; private set; }
+            public long BytesRead { get; private set; }
+            public bool IsComplete { get; private set; }
+            public string Digest { get; private set; }
+
+            public string Progress
+            {
+                get
+                {
+                    int percentage = Length == 0
+                        ? (IsComplete ? 100 : 0)
+                        : (int)(BytesRead * 100d / Length);
+                    return percentage + "% (" + BytesRead + "/" + Length + " bytes)";
+                }
+            }
+
+            public static bool TryCreate(
+                string path,
+                int bufferSize,
+                out SourceFileHasher hasher,
+                out Exception error)
+            {
+                try
+                {
+                    hasher = new SourceFileHasher(path, bufferSize);
+                    error = null;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    hasher = null;
+                    error = exception;
+                    return false;
+                }
+            }
+
+            public bool ReadNextChunk(out string error)
+            {
+                try
+                {
+                    int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                    if (bytesRead == 0)
+                    {
+                        sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                        Digest = ToHex(sha256.Hash);
+                        IsComplete = true;
+                    }
+                    else
+                    {
+                        sha256.TransformBlock(buffer, 0, bytesRead, buffer, 0);
+                        BytesRead += bytesRead;
+                    }
+
+                    error = null;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    error = exception.ToString();
+                    return false;
+                }
+            }
+
+            public void Dispose()
+            {
+                sha256.Dispose();
+                stream.Dispose();
+            }
+
+            private static string ToHex(byte[] hash)
+            {
                 StringBuilder result = new StringBuilder(hash.Length * 2);
                 foreach (byte value in hash)
                 {
