@@ -496,22 +496,27 @@ def _source_manifest(data: InstallationData) -> dict[str, Any]:
     }
 
 
+def snapshot_csv_bytes(data: InstallationData) -> bytes:
+    """Serialize the current installation's extracted rows deterministically."""
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(_make_csv_rows(data.table))
+    return stream.getvalue().encode("utf-8")
+
+
 def write_snapshot(data: InstallationData, output_dir: Path) -> Path:
     output_dir = output_dir.expanduser().resolve()
     if output_dir.exists():
         raise ExtractionError(f"Output directory already exists; refusing to overwrite: {output_dir}")
 
-    rows = _make_csv_rows(data.table)
     manifest = _source_manifest(data)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     temporary_dir = Path(
         tempfile.mkdtemp(prefix=f".{output_dir.name}-", dir=output_dir.parent)
     )
     try:
-        with (temporary_dir / "terms.csv").open("w", encoding="utf-8", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(rows)
+        (temporary_dir / "terms.csv").write_bytes(snapshot_csv_bytes(data))
         (temporary_dir / "source.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",

@@ -5,14 +5,24 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from .diffing import compare_snapshots
-from .extract import DEFAULT_GAME_ROOT, ExtractionError, default_output_dir, load_installation, write_snapshot
+from .extract import (
+    DEFAULT_GAME_ROOT,
+    ExtractionError,
+    InstallationData,
+    default_output_dir,
+    load_installation,
+    snapshot_csv_bytes,
+    write_snapshot,
+)
 from .fingerprints import source_fingerprint
-from .validation import index_terms_csv, validate
+from .patching import create_overlay_patch
+from .validation import index_terms_csv, lint_overrides, validate
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,6 +39,49 @@ def _parser() -> argparse.ArgumentParser:
         help="Peglin installation directory",
     )
     extract.add_argument("--output-dir", type=Path, help="exact output snapshot directory")
+
+    build_patch = subparsers.add_parser(
+        "build-patch",
+        help="extract the installed game and build a source-bound Korean JSON overlay",
+    )
+    build_patch.add_argument(
+        "--game-root",
+        type=Path,
+        default=Path(os.environ.get("PEGLIN_GAME_ROOT", DEFAULT_GAME_ROOT)),
+        help="Peglin installation directory",
+    )
+    build_patch.add_argument(
+        "--extracted-dir",
+        type=Path,
+        default=PROJECT_ROOT / "extracted",
+        help="root directory for immutable source snapshots",
+    )
+    build_patch.add_argument(
+        "--output-dir",
+        type=Path,
+        default=PROJECT_ROOT / "patches" / "generated",
+        help="directory for generated overlay JSON files",
+    )
+    build_patch.add_argument(
+        "--glossary",
+        type=Path,
+        default=PROJECT_ROOT / "translation" / "glossary.csv",
+    )
+    build_patch.add_argument(
+        "--overrides",
+        type=Path,
+        default=PROJECT_ROOT / "translation" / "overrides.json",
+    )
+
+    lint = subparsers.add_parser(
+        "lint-overrides",
+        help="validate override structure without requiring the installed game",
+    )
+    lint.add_argument(
+        "--overrides",
+        type=Path,
+        default=PROJECT_ROOT / "translation" / "overrides.json",
+    )
 
     validator = subparsers.add_parser("validate", help="validate a source CSV and overrides")
     validator.add_argument("--terms", required=True, type=Path, help="terms.csv snapshot")
@@ -80,6 +133,102 @@ def _run_extract(args: argparse.Namespace) -> int:
     )
     print(f"Snapshot: {snapshot}")
     return 0
+
+
+def _snapshot_for_build(data: InstallationData, extracted_dir: Path) -> Path:
+    """Reuse a matching immutable snapshot or write a new build/hash directory."""
+    base_name = default_output_dir(data).name
+    extracted_dir = extracted_dir.expanduser().resolve()
+    candidates = (
+        extracted_dir / base_name,
+        extracted_dir / f"{base_name}-{data.asset_sha256[:8]}",
+    )
+    for candidate in candidates:
+        if not candidate.exists():
+            return write_snapshot(data, candidate)
+        manifest_path = candidate / "source.json"
+        terms_path = candidate / "terms.csv"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ExtractionError(
+                f"Existing snapshot cannot be verified; preserving it: {candidate}"
+            ) from exc
+        if not isinstance(manifest, dict):
+            raise ExtractionError(
+                f"Existing snapshot manifest is not an object; preserving it: {candidate}"
+            )
+        matches_installation = (
+            manifest.get("assetPath") == str(data.asset_path)
+            and manifest.get("assetSha256") == data.asset_sha256
+            and manifest.get("steamBuildId") == data.build_id
+            and manifest.get("unityVersion") == data.unity_version
+            and manifest.get("termCount") == len(data.table.terms)
+        )
+        if matches_installation:
+            if not terms_path.is_file() or terms_path.read_bytes() != snapshot_csv_bytes(data):
+                raise ExtractionError(
+                    f"Existing snapshot does not match the installed source; preserving it: {candidate}"
+                )
+            return candidate
+    raise ExtractionError(
+        "Snapshot path is occupied by different source data; choose a separate "
+        f"--extracted-dir: {candidates[-1]}"
+    )
+
+
+def _run_build_patch(args: argparse.Namespace) -> int:
+    try:
+        data = load_installation(args.game_root)
+        if not isinstance(data.build_id, str) or not data.build_id.strip():
+            raise ExtractionError("A Steam build ID is required to produce a source-bound overlay.")
+        snapshot = _snapshot_for_build(data, args.extracted_dir)
+        manifest = json.loads((snapshot / "source.json").read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValueError("Source manifest root must be a JSON object.")
+        build_id = manifest.get("steamBuildId")
+        if (
+            not isinstance(build_id, str)
+            or re.fullmatch(r"[A-Za-z0-9._-]{1,64}", build_id) is None
+        ):
+            raise ValueError("Source manifest steamBuildId cannot be used in a patch filename.")
+        asset_sha256 = manifest.get("assetSha256")
+        if (
+            not isinstance(asset_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", asset_sha256) is None
+        ):
+            raise ValueError("Source manifest assetSha256 must be a lowercase SHA-256 digest.")
+        output_path = args.output_dir.expanduser().resolve() / (
+            f"peglin-ko-{build_id}-{asset_sha256[:8]}.json"
+        )
+        result = create_overlay_patch(
+            snapshot / "terms.csv",
+            snapshot / "source.json",
+            args.overrides,
+            args.glossary,
+            output_path,
+        )
+    except (ExtractionError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Patch generation stopped safely: {exc}", file=sys.stderr)
+        return 2
+    print(f"Snapshot: {snapshot}")
+    print(f"Patch status: {result['status']}")
+    print(f"Translated terms: {len(result['terms'])}")
+    print(f"Patch: {output_path}")
+    return 0
+
+
+def _run_lint_overrides(args: argparse.Namespace) -> int:
+    try:
+        summary, issues = lint_overrides(args.overrides)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Override lint could not run: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    for issue in issues:
+        location = f" [{issue.term}]" if issue.term else ""
+        print(f"{issue.severity.upper()} {issue.code}{location}: {issue.message}")
+    return 1 if summary["errors"] else 0
 
 
 def _run_validate(args: argparse.Namespace) -> int:
@@ -140,6 +289,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "extract":
             return _run_extract(args)
+        if args.command == "build-patch":
+            return _run_build_patch(args)
+        if args.command == "lint-overrides":
+            return _run_lint_overrides(args)
         if args.command == "validate":
             return _run_validate(args)
         if args.command == "diff":
