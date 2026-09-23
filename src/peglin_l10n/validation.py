@@ -18,7 +18,9 @@ TOKEN_PATTERN = re.compile(
     r"|\{\[[^\]\r\n]+\]\}"
     r"|\[/?[A-Za-z_][A-Za-z0-9_.:-]*(?:=[^\]\r\n]*)?\]"
     r"|\{(?:/?[A-Za-z_][A-Za-z0-9_.-]*(?:=[^{}\r\n]*)?|\d+)\}"
-    r"|%(?:\d+\$)?[-+#0 ]*\d*(?:\.\d+)?[a-zA-Z%]"
+    # A space flag needs a delimiter after its conversion to avoid matching prose like "% of".
+    r"|%(?:\d+\$)?[-+#0]*\d*(?:\.\d+)?[a-zA-Z%]"
+    r"|%(?:\d+\$)?[-+#0 ]*\d*(?:\.\d+)?[a-zA-Z%](?![a-zA-Z])"
 )
 
 
