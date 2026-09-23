@@ -83,6 +83,7 @@ def _markup_is_balanced(text: str) -> bool:
         if (marker := _markup_marker(token)) is not None and marker[2]
     }
     stack: list[tuple[str, str]] = []
+    vertexp_open_count = 0
     for token in tokens:
         marker = _markup_marker(token)
         if marker is None:
@@ -95,12 +96,22 @@ def _markup_is_balanced(text: str) -> bool:
             continue
         delimiter, tag_name, is_closing = marker
         key = (delimiter, tag_name)
+        # The game's vertexp text effect can close inside a rich-text style tag.
+        # Check its opening and closing tags as a pair without imposing stack order.
+        if key == ("brace", "vertexp"):
+            if is_closing:
+                if vertexp_open_count == 0:
+                    return False
+                vertexp_open_count -= 1
+            else:
+                vertexp_open_count += 1
+            continue
         if is_closing:
             if not stack or stack.pop() != key:
                 return False
         elif key in closing_markers:
             stack.append(key)
-    return not stack
+    return not stack and vertexp_open_count == 0
 
 
 def read_terms_csv(path: Path) -> list[dict[str, str]]:
