@@ -133,6 +133,16 @@ class TranslationDirectoryTests(unittest.TestCase):
                 "<style=hit>활성화</style>",
             ),
             (
+                "Orbs/test_activate_style",
+                "orbs.csv",
+                "<style=activate>활성화</style>",
+            ),
+            (
+                "Orbs/test_activation_outside_hit",
+                "orbs.csv",
+                "활성화",
+            ),
+            (
                 "Dialogue System/Conversation/Test/FixedParticle",
                 "dialogue-system.csv",
                 "[var=orb0]를 포기합니다. [var=orb1]라는 구슬도 봅니다.",
@@ -181,6 +191,11 @@ class TranslationDirectoryTests(unittest.TestCase):
                 "Relics/lifesteal_peg_hit_desc",
                 "relics.csv",
                 "<sprite name=PEG>",
+            ),
+            (
+                "Relics/valid_sprite_tag",
+                "relics.csv",
+                '<sprite name="PEG">',
             ),
         ]
         rows_by_file: dict[str, list[dict[str, str]]] = {}

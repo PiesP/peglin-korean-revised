@@ -53,6 +53,7 @@ _CANONICAL_NAME_EXPECTATIONS = {
     "Enemies/slime_rainbow_name": "무지개 슬라임드롭",
     "Achievements/NEW_ACHIEVEMENT_16_48_DESC": "페인보우 슬라임드롭",
     "Challenges/taste_the_painbow_desc": "페인보우 슬라임드롭",
+    # This lore reference names the separate rainbow slime, not the miniboss.
     "Enemies/slime_painbow_lore": "무지개 슬라임드롭",
 }
 
