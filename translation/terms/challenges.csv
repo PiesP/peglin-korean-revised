@@ -25,5 +25,5 @@ Challenges/some_relics_dont_work_desc,다음 막에서는 매 전투마다 무�
 Challenges/some_relics_dont_work_name,유물 로테이션,draft,,
 Challenges/spinfection_pegs_desc,"다음 막에서는 미니언이 아닌 적이 사망할 때 <sprite name=""PEG""> {[SPINFECTION_PEG_CHALLENGE_AMOUNT]}개를 <sprite name=""SPINFECTION_PEG"">로 바꿉니다. 이 페그가 <style=activate>활성화</style>되면 플레이어에게 <style=player_poison>감염 1</style>을 부여합니다.",draft,,
 Challenges/spinfection_pegs_name,한물간 방호복,draft,,
-Challenges/taste_the_painbow_desc,다음 막 내내 페인보우 슬라임이 쫓아옵니다.,draft,,
+Challenges/taste_the_painbow_desc,다음 막 동안 페인보우 슬라임드롭이 쫓아옵니다.,draft,,
 Challenges/taste_the_painbow_name,페인보우 소환,draft,,

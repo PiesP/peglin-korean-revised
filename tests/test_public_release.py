@@ -3,18 +3,22 @@ from __future__ import annotations
 import csv
 import copy
 import hashlib
+import io
 import json
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
+from peglin_l10n.cli import main
 from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
 from peglin_l10n.release import build_release_candidate
 from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
+    protected_tokens,
     read_translation_directory,
     validate,
     validate_locked_translations,
@@ -120,6 +124,138 @@ class TranslationDirectoryTests(unittest.TestCase):
             },
             {issue.code for issue in issues},
         )
+
+    def test_review_warnings_are_specific_and_do_not_fail_lint(self) -> None:
+        cases = [
+            (
+                "Orbs/healing_slime",
+                "orbs.csv",
+                "<style=hit>활성화</style>",
+            ),
+            (
+                "Dialogue System/Conversation/Test/FixedParticle",
+                "dialogue-system.csv",
+                "[var=orb0]를 포기합니다. [var=orb1]라는 구슬도 봅니다.",
+            ),
+            (
+                "Dialogue System/Conversation/Test/InvariantParticle",
+                "dialogue-system.csv",
+                "구슬 이름은 [var=orb0]입니다.",
+            ),
+            (
+                "Achievements/NEW_ACHIEVEMENT_16_48_DESC",
+                "achievements.csv",
+                "페인보우(슬라임)를 처치하세요.",
+            ),
+            (
+                "Challenges/taste_the_painbow_desc",
+                "challenges.csv",
+                "페인보우 슬라임드롭이 쫓아옵니다.",
+            ),
+            (
+                "Enemies/slime_painbow_lore",
+                "enemies.csv",
+                "무지개 슬라임드롭의 최종 형태입니다.",
+            ),
+            (
+                "Enemies/slime_painbow_name",
+                "enemies.csv",
+                "페인보우 슬라임드롭",
+            ),
+            (
+                "Enemies/slime_rainbow_name",
+                "enemies.csv",
+                "무지개 슬라임드롭",
+            ),
+            (
+                "Enemies/other_enemy_name",
+                "enemies.csv",
+                "별도의 적 이름",
+            ),
+            (
+                "Relics/mental_mantle_desc",
+                "relics.csv",
+                '<sprite name="PEG>',
+            ),
+            (
+                "Relics/lifesteal_peg_hit_desc",
+                "relics.csv",
+                "<sprite name=PEG>",
+            ),
+        ]
+        rows_by_file: dict[str, list[dict[str, str]]] = {}
+        lock_terms = {}
+        for term, filename, translation in cases:
+            rows_by_file.setdefault(filename, []).append(
+                {
+                    "Term": term,
+                    "Translation": translation,
+                    "Status": "draft",
+                    "ReviewedBuildId": "",
+                    "Comment": "",
+                }
+            )
+            lock_terms[term] = {
+                "category": term.split("/", 1)[0],
+                "file": filename,
+                "sourceFingerprint": "a" * 64,
+                "protectedTokens": protected_tokens(translation),
+            }
+        for filename, rows in rows_by_file.items():
+            self._write_csv(filename, rows)
+
+        lock = {
+            "schemaVersion": 1,
+            "kind": "peglin-korean-source-lock",
+            "game": "Peglin",
+            "steamAppId": "1296610",
+            "language": "ko",
+            "steamBuildId": "1",
+            "unityVersion": "2022.3",
+            "resourcesAssetsSha256": "a" * 64,
+            "assemblyCSharpSha256": "b" * 64,
+            "sourceRowCount": len(lock_terms),
+            "translationCount": len(lock_terms),
+            "runtime": {
+                "path": "runtime/PeglinKoreanRevised.dll",
+                "pluginVersion": "0.1.2",
+                "sha256": "c" * 64,
+                "sourceInputsSha256": "d" * 64,
+            },
+            "terms": lock_terms,
+        }
+        (self.terms.parent / "source-lock.json").write_text(
+            json.dumps(lock), encoding="utf-8"
+        )
+
+        summary, issues = validate_locked_translations(self.terms, lock)
+        warnings = [issue for issue in issues if issue.severity == "warning"]
+        self.assertEqual(0, summary["errors"])
+        self.assertEqual(4, summary["warnings"])
+        self.assertEqual(4, len(warnings))
+        self.assertEqual(
+            {
+                "CANONICAL_NAME_DRIFT",
+                "FIXED_ORB_NAME_PARTICLE",
+                "HIT_STYLE_TERM_COLLISION",
+                "MALFORMED_LOCKED_SPRITE_TAG",
+            },
+            {issue.code for issue in warnings},
+        )
+        self.assertEqual(
+            {
+                "Orbs/healing_slime",
+                "Dialogue System/Conversation/Test/FixedParticle",
+                "Achievements/NEW_ACHIEVEMENT_16_48_DESC",
+                "Relics/mental_mantle_desc",
+            },
+            {issue.term for issue in warnings},
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            exit_code = main(["lint-overrides", "--translations", str(self.terms)])
+        self.assertEqual(0, exit_code)
 
     def test_glossary_does_not_split_hyphenated_game_names(self) -> None:
         terms_path = self.root / "source.csv"

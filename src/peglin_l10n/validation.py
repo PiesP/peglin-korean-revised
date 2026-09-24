@@ -32,6 +32,30 @@ TRANSLATION_FIELDS = (
     "Comment",
 )
 
+_HIT_STYLE_ACTIVATION = re.compile(
+    r"<style=hit>[^<>\r\n]*활성화[^<>\r\n]*</style>"
+)
+_ORB_VARIABLE_WITH_FIXED_PARTICLE = re.compile(
+    r"\[(?:var|variable)=[^\]\r\n]*orb[^\]\r\n]*\]"
+    r"(?:</style>)?\s*"
+    r"(?P<particle>이라고|라고|이라는|라는|"
+    r"으로|로|은|는|이|가|을|를|과|와)(?![가-힣])",
+    re.IGNORECASE,
+)
+_MALFORMED_SPRITE_NAME_TOKEN = re.compile(
+    r'<sprite\b[^>]*\bname="[^"]*>', re.IGNORECASE
+)
+
+# Keep this list explicit. Similar-looking *_name terms do not imply that two
+# translated names refer to the same in-game entity.
+_CANONICAL_NAME_EXPECTATIONS = {
+    "Enemies/slime_painbow_name": "페인보우 슬라임드롭",
+    "Enemies/slime_rainbow_name": "무지개 슬라임드롭",
+    "Achievements/NEW_ACHIEVEMENT_16_48_DESC": "페인보우 슬라임드롭",
+    "Challenges/taste_the_painbow_desc": "페인보우 슬라임드롭",
+    "Enemies/slime_painbow_lore": "무지개 슬라임드롭",
+}
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -485,6 +509,70 @@ def validate_locked_translations(
                 )
             )
 
+        if _HIT_STYLE_ACTIVATION.search(translation):
+            issues.append(
+                Issue(
+                    "warning",
+                    "HIT_STYLE_TERM_COLLISION",
+                    "A Hit-styled phrase contains '활성화'; review the distinction "
+                    "between Hit and Activate.",
+                    term,
+                )
+            )
+
+        if row["_file"] == "dialogue-system.csv":
+            particle_matches = list(
+                _ORB_VARIABLE_WITH_FIXED_PARTICLE.finditer(translation)
+            )
+            if particle_matches:
+                particles = ", ".join(
+                    sorted({match.group("particle") for match in particle_matches})
+                )
+                issues.append(
+                    Issue(
+                        "warning",
+                        "FIXED_ORB_NAME_PARTICLE",
+                        f"Orb-name variable is followed by a fixed Korean particle "
+                        f"({particles}); rewrite the phrase or review runtime "
+                        "particle handling.",
+                        term,
+                    )
+                )
+
+        expected_name = _CANONICAL_NAME_EXPECTATIONS.get(term)
+        if expected_name is not None and expected_name not in translation:
+            issues.append(
+                Issue(
+                    "warning",
+                    "CANONICAL_NAME_DRIFT",
+                    f"This reviewed reference expects the canonical Korean name "
+                    f"{expected_name!r}; compare the source context before "
+                    "changing it.",
+                    term,
+                )
+            )
+
+    for term, metadata in lock_terms.items():
+        if not isinstance(metadata, dict):
+            continue
+        protected = metadata.get("protectedTokens")
+        if not isinstance(protected, list):
+            continue
+        for token in protected:
+            if isinstance(token, str) and _MALFORMED_SPRITE_NAME_TOKEN.fullmatch(
+                token
+            ):
+                issues.append(
+                    Issue(
+                        "warning",
+                        "MALFORMED_LOCKED_SPRITE_TAG",
+                        f"Source lock preserves malformed sprite token "
+                        f"{token!r}; review the source and rendering before "
+                        "changing the translation.",
+                        term,
+                    )
+                )
+
     actual_files = {path.name for path in terms_path.glob("*.csv")}
     for file_name in sorted(actual_files - referenced_files):
         issues.append(
@@ -508,6 +596,7 @@ def validate_locked_translations(
         "draft": status_counts["draft"],
         "approved": status_counts["approved"],
         "errors": sum(issue.severity == "error" for issue in issues),
+        "warnings": sum(issue.severity == "warning" for issue in issues),
     }, issues
 
 
