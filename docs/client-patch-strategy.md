@@ -63,23 +63,29 @@ other entries retain the fixed ZIP timestamp. This keeps identical candidates
 reproducible and gives changed plugin binaries content-specific timestamps so
 BepInEx can invalidate cached plugin metadata when that timestamp changes.
 
-## Build
+## Build and release
 
-From the repository root, install the locked Python tools and run:
+After an administrator approves and manually merges a contribution PR, the
+release workflow verifies the merged commit and builds on GitHub-hosted Linux.
+It uses the reviewed translation CSVs, `translation/source-lock.json`, and the
+tracked plugin at `runtime/PeglinKoreanRevised.dll`; the hosted runner does not
+need a Peglin installation or its game files. The workflow validates the
+generated overlay, exact ZIP contents, manifests, and SHA-256 checksums before
+creating a GitHub Release. Draft translations are published as prereleases.
+
+To reproduce the hosted package locally:
 
     uv sync --locked
-    uv run peglin-l10n build-candidate
+    uv run peglin-l10n lint-overrides
+    uv run peglin-l10n build-release-candidate \
+      --source-revision REV \
+      --output-dir OUTPUT_DIR
 
-The command requires the .NET SDK and the Peglin installation described in the
-root README. It writes the source-bound JSON overlay to patches/generated and
-the install ZIP to patches/candidates. Extracted snapshots, overlays, plugin
-build files, and ZIP output must stay outside the Peglin installation directory.
-Use --game-root, --extracted-dir, --output-dir, --candidate-dir,
---plugin-project, or --dotnet to select alternate paths or the SDK command.
-
-The manual Build Peglin Korean client candidate workflow performs the same
-build on the private, game-aware WSL runner and uploads both the JSON overlay
-and ZIP as a short-lived Actions artifact.
+This build validates the tracked plugin DLL against its source inputs and the
+source lock. Updating the game build or plugin requires an administrator to
+refresh those locked inputs and the runtime DLL using a trusted local game
+installation before submitting the change for review. Do not include extracted
+game tables or game binaries in the public repository.
 
 ## Install and remove
 
