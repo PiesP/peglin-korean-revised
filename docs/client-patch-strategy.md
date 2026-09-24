@@ -50,6 +50,11 @@ Assembly-CSharp.dll hash, plugin hash, overlay hash, and loader requirement. A
 game update that changes either source file requires a new candidate; the old
 candidate will refuse to apply.
 
+The plugin DLL's ZIP timestamp is derived deterministically from its content;
+other entries retain the fixed ZIP timestamp. This keeps identical candidates
+reproducible and gives changed plugin binaries content-specific timestamps so
+BepInEx can invalidate cached plugin metadata when that timestamp changes.
+
 ## Build
 
 From the repository root, install the locked Python tools and run:
