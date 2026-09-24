@@ -77,6 +77,9 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+          config: |
+            paths-ignore:
+              - ".github/codeql-reference-stubs/**"
       - name: Restore C# plugin dependencies
         if: ${{ matrix.language == 'csharp' }}
         env:
