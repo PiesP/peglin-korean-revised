@@ -45,17 +45,22 @@ jobs:
 
           response="$RUNNER_TEMP/pull-requests.json"
           gh api "repos/${GITHUB_REPOSITORY}/commits/${SOURCE_SHA}/pulls" > "$response"
-          python3 - "$response" "$SOURCE_SHA" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'PY'
+          python3 - "$response" "$SOURCE_SHA" "$GITHUB_REPOSITORY" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'PY'
           import json
+          import subprocess
           import sys
           from pathlib import Path
 
-          response_path, source_sha, output_path, summary_path = map(Path, sys.argv[1:])
+          response_path = Path(sys.argv[1])
+          source_sha = sys.argv[2]
+          repository = sys.argv[3]
+          output_path = Path(sys.argv[4])
+          summary_path = Path(sys.argv[5])
           pull_requests = json.loads(response_path.read_text(encoding="utf-8"))
           if not isinstance(pull_requests, list):
               raise SystemExit("GitHub returned an invalid pull request list.")
 
-          matches = [
+          merged_pull_requests = [
               pull_request
               for pull_request in pull_requests
               if isinstance(pull_request, dict)
@@ -64,15 +69,66 @@ jobs:
               and pull_request["base"].get("ref") == "master"
               and pull_request.get("merge_commit_sha") == str(source_sha)
           ]
-          eligible = bool(matches)
+          eligible_pull_requests = []
+          for pull_request in merged_pull_requests:
+              merged_by = pull_request.get("merged_by")
+              head = pull_request.get("head")
+              number = pull_request.get("number")
+              if (
+                  type(number) is not int
+                  or number <= 0
+                  or not isinstance(merged_by, dict)
+                  or str(merged_by.get("login", "")).casefold() != "piesp"
+                  or not isinstance(head, dict)
+                  or not isinstance(head.get("sha"), str)
+              ):
+                  continue
+
+              reviews_output = subprocess.run(
+                  [
+                      "gh",
+                      "api",
+                      "--paginate",
+                      "--slurp",
+                      f"repos/{repository}/pulls/{number}/reviews",
+                  ],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+              review_pages = json.loads(reviews_output)
+              if not isinstance(review_pages, list):
+                  raise SystemExit(f"GitHub returned invalid reviews for PR #{number}.")
+              reviews = [review for page in review_pages if isinstance(page, list) for review in page]
+              administrator_reviews = [
+                  review
+                  for review in reviews
+                  if isinstance(review, dict)
+                  and isinstance(review.get("user"), dict)
+                  and str(review["user"].get("login", "")).casefold() == "piesp"
+                  and review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+              ]
+              latest_review = max(
+                  administrator_reviews,
+                  key=lambda review: (str(review.get("submitted_at") or ""), int(review.get("id") or 0)),
+                  default=None,
+              )
+              if (
+                  latest_review is not None
+                  and latest_review.get("state") == "APPROVED"
+                  and latest_review.get("commit_id") == head["sha"]
+              ):
+                  eligible_pull_requests.append(pull_request)
+
+          eligible = bool(eligible_pull_requests)
           with output_path.open("a", encoding="utf-8") as output:
               output.write(f"eligible={'true' if eligible else 'false'}\n")
           with summary_path.open("a", encoding="utf-8") as summary:
               if eligible:
-                  numbers = ", ".join(str(item["number"]) for item in matches)
-                  summary.write(f"Release source verified as merged PR #{numbers}.\n")
+                  numbers = ", ".join(str(item["number"]) for item in eligible_pull_requests)
+                  summary.write(f"Release source verified as admin-approved PR #{numbers}, manually merged by @PiesP.\n")
               else:
-                  summary.write("Release skipped: this master commit is not a merged PR commit.\n")
+                  summary.write("Release skipped: this commit lacks a current @PiesP approval and manual merge by @PiesP.\n")
           PY
 
   build:
@@ -90,7 +146,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95e4a91299a34e894583c3862153e4b97
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - name: Set up uv
@@ -190,7 +246,12 @@ jobs:
               if hashlib.sha256(contents).hexdigest() != line[:64]:
                   raise SystemExit(f"Checksum mismatch: {name}")
 
-          if not any(name.endswith(".json") and name != "release-manifest.json" for name in expected):
+          overlay_files = [
+              name
+              for name in expected
+              if name.endswith(".json") and name != "release-manifest.json"
+          ]
+          if len(overlay_files) != 1:
               raise SystemExit("The JSON translation overlay is missing.")
           archives = [name for name in expected if name.endswith(".zip")]
           if len(archives) != 1:
@@ -230,6 +291,7 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"prerelease={'true' if status == 'draft' else 'false'}\n")
               output.write(f"tag=peglin-ko-{source_sha[:12]}\n")
+              output.write(f"overlay={overlay_files[0]}\n")
           PY
       - name: Create release for the merged commit
         env:
@@ -238,6 +300,7 @@ jobs:
           RELEASE_DIR: ${{ runner.temp }}/peglin-release
           RELEASE_TAG: ${{ steps.verify.outputs.tag }}
           PRERELEASE: ${{ steps.verify.outputs.prerelease }}
+          OVERLAY_NAME: ${{ steps.verify.outputs.overlay }}
         run: |
           set -euo pipefail
           args=(--target "$SOURCE_SHA" --title "Peglin Korean Revised ${SOURCE_SHA:0:12}" --notes-file "$RELEASE_DIR/release-notes.md")
@@ -245,7 +308,7 @@ jobs:
             args+=(--prerelease)
           fi
           gh release create "$RELEASE_TAG" "${args[@]}" \
-            "$RELEASE_DIR"/*.json \
+            "$RELEASE_DIR/$OVERLAY_NAME" \
             "$RELEASE_DIR"/*.zip \
             "$RELEASE_DIR/release-notes.md" \
             "$RELEASE_DIR/release-manifest.json" \
