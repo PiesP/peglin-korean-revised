@@ -17,7 +17,7 @@ from typing import Any
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _PLUGIN_GUID = "piesp.peglin.koreanrevised"
-_PLUGIN_VERSION = "0.1.2"
+PLUGIN_VERSION = "0.1.2"
 _PLUGIN_ARCHIVE_PATH = "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"
 _PEGLIN_BEPINEX_PACK_VERSION = "5.4.2100"
 _BEPINEX_VERSION = "5.4.21"
@@ -241,7 +241,7 @@ def _package_candidate(
             "minimumBepInExVersion": _BEPINEX_VERSION,
             "recommendedPeglinPack": f"BepInExPack_Peglin {_PEGLIN_BEPINEX_PACK_VERSION}",
             "pluginGuid": _PLUGIN_GUID,
-            "pluginVersion": _PLUGIN_VERSION,
+            "pluginVersion": PLUGIN_VERSION,
             "assemblyCSharpSha256": assembly_sha256,
         },
         "files": {
