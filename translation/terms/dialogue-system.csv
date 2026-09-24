@@ -20,7 +20,7 @@ Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/01/Dialogue Tex
 ""<wave>으으으</wave>, 난 은퇴했으니 이제 그만 내버려 둬. 잠깐... 이 맛있는 <style=stone>펩볼</style> 냄새는? 이렇게 하지. 그걸 먹게 해 주면 없던 일로 해 주마.""",draft,,
 Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/03/Dialogue Text,<style=loseOrb>[var=randomOrb0]</style>와 <style=loseOrb>[var=randomOrb1]</style> 주기.,draft,,
 Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/04/Dialogue Text,도망치기!,draft,,
-Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/05/Dialogue Text,"<style=stone>늙은 벽돌 슬라임박스</style>는 <style=stone>펩볼</style>을 <shake>가루가 되도록</shake> 씹어 먹고 만족스러운 소리를 낸 뒤 다시 잠듭니다. 
+Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/05/Dialogue Text,"<style=stone>늙은 벽돌 슬라임박스</style>는 <style=stone>펩볼</style>을 <shake>가루가 되도록</shake> 씹어 먹고 만족스러운 소리를 낸 뒤 다시 잠듭니다.
 당신은 다시 길을 나섭니다.",draft,,
 Dialogue System/Conversation/Scenario.Castle.OldBrickSlime/Entry/07/Dialogue Text,지치고 늙은 벽돌 슬라임박스에게서 손쉽게 빠져나옵니다.,draft,,
 Dialogue System/Conversation/Scenario.Castle.PeglinChef/Entry/01/Dialogue Text,"주방에 잘못 들어선 당신은... 인간 요리사처럼 차려입은 <style=peglin>페글린</style>과 마주칩니다. 귀를 엉성하게 가렸는데도 인간들은 변장을 감쪽같이 믿는 모양입니다.
