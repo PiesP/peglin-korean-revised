@@ -1,0 +1,41 @@
+name: 번역 수정 제안
+description: 어색하거나 잘못된 한국어 번역을 제안합니다.
+title: "[번역] "
+body:
+  - type: input
+    id: term
+    attributes:
+      label: 용어 키
+      description: 알고 있다면 번역 CSV의 Term 값을 정확히 적어 주세요.
+      placeholder: "예: MainMenu/Start"
+    validations:
+      required: false
+  - type: input
+    id: current-translation
+    attributes:
+      label: 현재 번역
+      description: 게임에 표시된 현재 한국어 문구를 적어 주세요.
+    validations:
+      required: false
+  - type: textarea
+    id: proposed-translation
+    attributes:
+      label: 제안하는 번역
+      description: 바꾸고 싶은 한국어 문구를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 문맥과 표시 위치
+      description: 어느 화면이나 상황에서 표시되는 문구인지 설명해 주세요.
+      placeholder: "예: 전투 보상 화면에서 유물을 선택할 때 표시됩니다."
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: 변경 이유
+      description: 현재 번역의 문제와 제안 문구가 더 알맞은 이유를 설명해 주세요.
+    validations:
+      required: true
