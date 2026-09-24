@@ -512,7 +512,7 @@
       "sourceFingerprint": "b62c3918d0453fea1f4a31d341bd36d215bdbe2e145ed187d63d19198b0d4ee1"
     },
     "Menu/Controls/joystick_element_assignment_polling_window_message_full_axis_field_only": {
-      "translation": "이제 축을 {0} 위치로 이동하세요.",
+      "translation": "이제 축을 움직여 {0}에 할당하세요.",
       "status": "draft",
       "sourceFingerprint": "fcf7d82aa788b98591635ed1da2e3baaab138676ccb0a5d4a89937e60aad9715"
     },
@@ -882,17 +882,17 @@
       "sourceFingerprint": "17d8d5637321850c56fe6418847a86e53096e7f157b6174fc0c5d891b4b95e3e"
     },
     "Menu/RunSummary/pegs_hit": {
-      "translation": "맞춘 페그",
+      "translation": "맞힌 페그",
       "status": "draft",
       "sourceFingerprint": "cdb17f790cdbb1577fac46ef3697044e21e1d95c652b53040aa2dd309bfae644"
     },
     "Menu/RunSummary/pegs_hit_crit": {
-      "translation": "맞춘 치명타 페그",
+      "translation": "맞힌 치명타 페그",
       "status": "draft",
       "sourceFingerprint": "8ccba7228d565f655622c5f5c31e2a5ebfd13b1f6d61e60ddde27f3902831463"
     },
     "Menu/RunSummary/pegs_hit_refresh": {
-      "translation": "맞춘 새로고침 페그",
+      "translation": "맞힌 새로고침 페그",
       "status": "draft",
       "sourceFingerprint": "77789477d9ed954cf33b31a4b248562b3114258056a36976f878ebe47679a687"
     },
@@ -1062,7 +1062,7 @@
       "sourceFingerprint": "b40fcfc94705bf61554edc898193161e717dc08792cc915291d6c62bcf2d29fa"
     },
     "Menu/button_prompts_label": {
-      "translation": "버튼 안내",
+      "translation": "버튼 프롬프트",
       "status": "draft",
       "sourceFingerprint": "7dabf05edf3167b75c0aaff1fdc8b358a602c9a6f64d62df49df1312c96c7bca"
     },
@@ -1347,12 +1347,12 @@
       "sourceFingerprint": "191556fdd2738e2e019af4c0d5a72b6f5b2a3550b37b784adc824cbc1af6937c"
     },
     "Menu/save_data_corrupted": {
-      "translation": "저장 데이터가 손상되었습니다. 이전 저장 데이터를 백업해 새로운 저장 파일을 생성했습니다.",
+      "translation": "저장 데이터가 손상되었습니다. 이전 데이터는 백업했으며 새 저장 파일을 생성합니다.",
       "status": "draft",
       "sourceFingerprint": "64186b9ec597cf387889fec1c06ef45d96e1144cae77467057ead1fcbb71ed15"
     },
     "Menu/save_data_explanation": {
-      "translation": "진행 사항은 페글린이 지도에서 스테이지를 이동할 때마다 저장됩니다.",
+      "translation": "페글린이 지도 지점을 떠날 때마다 회차 진행 상황이 저장됩니다.",
       "status": "draft",
       "sourceFingerprint": "f192ee9fbf2ed457481cf294fae7d46d6ed23dc47112a7b2bbaf2345318c5380"
     },
@@ -1372,7 +1372,7 @@
       "sourceFingerprint": "6f8e9ed36acce05bed96bd8c0707345cc9a476d75b786095c194ad0452b53792"
     },
     "Menu/screenshake_label": {
-      "translation": "화면 흔들림[i2s_NX]화면 흔들림",
+      "translation": "화면 흔들림 강도[i2s_NX]화면 흔들림 강도",
       "status": "draft",
       "sourceFingerprint": "f694fe0859cd7b1827cecb592205f892b9d5afe88fd70c64ffed7fdcad5d71e7"
     },
@@ -1862,7 +1862,7 @@
       "sourceFingerprint": "0eb025b2a8e63d005808964c8a85691ff1bfe5d48a11b500fb19bbe02671b40c"
     },
     "Statuses/bouncy_slime_name": {
-      "translation": "충돌",
+      "translation": "튕김",
       "status": "draft",
       "sourceFingerprint": "e41df2618a8438b1de4aac4f034eb0d8d8f38abd1777c5349f627a63d356c2ad"
     },
@@ -1917,7 +1917,7 @@
       "sourceFingerprint": "ecb3b5448841d5cdc196429d3b337beca62349ecfe89ab7c02651e7c2b4e2512"
     },
     "Statuses/dodge_desc": {
-      "translation": "<style=dodge>환각 X</style>를 사용하면 받는 공격을 피할 확률이 X% 증가합니다. 공격을 피한 후에는 환각이 절반으로 감소합니다.",
+      "translation": "<style=dodge>환각 X</style> 상태에서는 받는 공격을 X% 확률로 피합니다. 공격을 피하면 환각 수치가 절반으로 줄어듭니다.",
       "status": "draft",
       "sourceFingerprint": "97e9a533137c752470993e9890251e566e8ee1a762db050971e4a272196038d3"
     },
@@ -2037,12 +2037,12 @@
       "sourceFingerprint": "0f7f11c3b081d10af8c416dc0f5be31527ae325d57efa99f1f203a5a9dcb7638"
     },
     "Statuses/reflect_desc": {
-      "translation": "리바운드 X를 가진 적은 투사체 공격에 맞을 때, 죽지 않으면 X%의 대미지를 돌려줍니다. 리바운드는 <style=transpherency>투명성</style> 수치만큼 감소합니다.",
+      "translation": "리바운드 X가 있는 적은 투사체 공격으로 받은 대미지의 X%를 되돌려 줍니다. 단, 공격으로 적을 처치하면 반격하지 않습니다. <style=transpherency>투명성</style>은 되돌려주는 대미지 비율을 낮춥니다.",
       "status": "draft",
       "sourceFingerprint": "ee596192ee6a4c16ae2c39d2cc950f6d3aa28e5acddfd95c27a226205af31232"
     },
     "Statuses/shield_desc": {
-      "translation": "<style=shield>보호막</style>은 체력을 보호하는 갑옷입니다. 받은 대미지는 우선 <style=shield>보호막</style>에 적용된 후 체력을 감소시킵니다.",
+      "translation": "<style=shield>보호막</style>은 체력을 보호하는 갑옷입니다. 대미지를 받으면 <style=shield>보호막</style>이 체력보다 먼저 감소합니다.",
       "status": "draft",
       "sourceFingerprint": "580c2c7f2aca0009d08f73d01ef2208af06dfbacb2973f9b827ac2266fbd05f7"
     },
@@ -2627,7 +2627,7 @@
       "sourceFingerprint": "c8301091fa8406a9a1adb47ceb877d1e09ce4ffa05488dd8cd33912d5ec3ed84"
     },
     "Orbs/copy_another_orb": {
-      "translation": "매 재장전마다, 보유 중인 구슬 중 하나로 변환합니다.",
+      "translation": "재장전할 때마다 보유한 구슬 중 무작위 하나로 변합니다.",
       "status": "draft",
       "sourceFingerprint": "194e0a44a09cf8e82b4e46977e819d46cee621a050902d79350e95189231759d"
     },
@@ -3212,7 +3212,7 @@
       "sourceFingerprint": "7d4b2476ffe660efa1266731eb453aabbfd8fdc11f6edb04171671e949140e3d"
     },
     "Orbs/massive_damage_crit": {
-      "translation": "<sprite name=\"CRIT_PEG\">와 충돌해 얻은 치명타가 막대한 대미지를 줍니다.",
+      "translation": "치명타 대미지가 매우 큽니다. <sprite name=\"CRIT_PEG\">",
       "status": "draft",
       "sourceFingerprint": "581451f5533000757ce41d2ad8ab2edbb33f00d318b3b30ed8d3187474bb2f99"
     },
@@ -3442,7 +3442,7 @@
       "sourceFingerprint": "7987ba7fbe02eac05125b4591a48fa316ca0739983971be384e5c12826d9491b"
     },
     "Orbs/random_slime_orbs_multiball": {
-      "translation": "생성된 <style=multiball>멀티볼</style>은 이 구슬의 레벨과 일치하는 슬라임을 무작위로 붙이는 구슬입니다.",
+      "translation": "생성된 <style=multiball>멀티볼</style>은 슬라임을 부여하는 무작위 구슬이며, 이 구슬과 레벨이 같습니다.",
       "status": "draft",
       "sourceFingerprint": "31c51f44ce8c7f779a9df107dd537ed3d2c008c4247e74825dce58dbd8ca01a3"
     },
@@ -4097,7 +4097,7 @@
       "sourceFingerprint": "2994b1b0c127d8668abfcfa179bc4e34c0abddd328ce9c3413a6d2a034803bb5"
     },
     "Relics/additional_gold_desc": {
-      "translation": "전투 시작 시 <sprite name=\"COIN_ONLY\">을 {[ADDITIONAL_BATTLE_GOLD]}개 더 가집니다.",
+      "translation": "전투 시작 시 페그보드에 <sprite name=\"COIN_ONLY\">가 {[ADDITIONAL_BATTLE_GOLD]}개 더 배치됩니다.",
       "status": "draft",
       "sourceFingerprint": "829451faa2f98a9ccc8c1703fec5fc4d9afaae3ffe4886957de00ffc778ee18e"
     },
@@ -4137,7 +4137,7 @@
       "sourceFingerprint": "b009c4121ea2a436de7e14f06914a7ac30469b7c55d2537045d66e772d9c1a04"
     },
     "Relics/adjacency_bonus_desc": {
-      "translation": "같은 구슬이 연속해서 나올 경우 <style=dmg_bonus>+{[BP_ADJ_DMG]}/+{[BP_ADJ_CRIT]}</style>의 효과를 받습니다.",
+      "translation": "각 구슬은 뒤이어 연결된 같은 종류의 구슬 하나마다 <style=dmg_bonus>+{[BP_ADJ_DMG]}/+{[BP_ADJ_CRIT]}</style>를 얻습니다.",
       "status": "draft",
       "sourceFingerprint": "0db8e79b8fb297d49881e21e5c66cac4fd0e04ff219d7e92245ff07ddfa3122e"
     },
@@ -4242,7 +4242,7 @@
       "sourceFingerprint": "98a82ef9030e7eba7cc1231208e0cc8843d0552585503d9f0860f81402ff69c5"
     },
     "Relics/alternate_shot_power_desc": {
-      "translation": "짝수 번째로 발사하는 구슬은 {[ALTERNATE_SHOT_INC]}배의 힘으로 발사되지만, 홀수 번째로 발사되는 구슬은 {[ALTERNATE_SHOT_DEC]}배의 힘으로 발사됩니다.",
+      "translation": "짝수 번째로 뽑은 구슬은 {[ALTERNATE_SHOT_INC]}배의 힘으로 발사되고, 홀수 번째로 뽑은 구슬은 {[ALTERNATE_SHOT_DEC]}배의 힘으로 발사됩니다.",
       "status": "draft",
       "sourceFingerprint": "11bca3f7d07991d5a03260ad03ede7f51450c1b21b87307f0f8d3f6669eda414"
     },
@@ -4647,7 +4647,7 @@
       "sourceFingerprint": "48a08bb371299417a3919563da034bcf079ad0e94ab838be2b7e28ee25ded3b7"
     },
     "Relics/crit_pit_desc": {
-      "translation": "페그보드에 {[PIT_ADDITIONAL_CRIT]}개의 <sprite name=\"CRIT_PEG\">를 추가하지만, <sprite name=\"CRIT_PEG\">와 명중한 구슬이 수직 낙하합니다.",
+      "translation": "페그보드에 <sprite name=\"CRIT_PEG\">가 {[PIT_ADDITIONAL_CRIT]}개 더 생기지만, <sprite name=\"CRIT_PEG\">를 맞히면 구슬이 아래로 날아갑니다.",
       "status": "draft",
       "sourceFingerprint": "8e7e2d55a3c193be13417f1cff2919561483bc27115fb4f574262a5da70b8efc"
     },
@@ -4737,7 +4737,7 @@
       "sourceFingerprint": "6c0dfe7d027af24e7553769737bbe912de85b5c1aac2400059f9b6eed7018005"
     },
     "Relics/damage_reduction_desc": {
-      "translation": "<style=damage>체력을 잃을 때</style> 받는 대미지가 1 감소합니다.",
+      "translation": "<style=damage>체력을 잃을 때</style>마다 손실량이 1 감소합니다.",
       "status": "draft",
       "sourceFingerprint": "b50834b6fb73c6e9df3b9ac750bb9d266ddcee72b6502b37f05899f850fef157"
     },
@@ -4797,7 +4797,7 @@
       "sourceFingerprint": "e2b30711a9f420d8abe78cfa96d81481ff0f7d037de69cbd45505c220740e9ec"
     },
     "Relics/double_ballusion_cap_name": {
-      "translation": "포위된 부츠",
+      "translation": "곤경의 부츠",
       "status": "draft",
       "sourceFingerprint": "15e2febc4c0da0c4de080a5393dd012e6422ce2ba6f7176fe48b6cf1a409d4cd"
     },
@@ -4822,7 +4822,7 @@
       "sourceFingerprint": "a30b064682982505aa0f9bc6b6d8fd6a0e6cdfb056edc7991072e2f324416f05"
     },
     "Relics/double_coins_and_prices_desc": {
-      "translation": "전투 시작 시 <sprite name=\"COIN_ONLY\">를 2배로 가지지만 모든 아이템이 2배로 비싸집니다.",
+      "translation": "전투 시작 시 페그보드에 <sprite name=\"COIN_ONLY\">가 평소보다 2배 많이 배치되지만, 모든 구매 비용도 2배가 됩니다.",
       "status": "draft",
       "sourceFingerprint": "ebbf1cf5376095ba7136abb309a805a5682b90fb258681ff3e137ee1f5ffea79"
     },
@@ -5947,7 +5947,7 @@
       "sourceFingerprint": "e8ca0bc01ded3bc43531a47dfc7b7227f3b2598211b51b807b38d52fbd927cb6"
     },
     "Relics/all_attacks_pierce_desc2": {
-      "translation": "샷 횟수가 소수일 때마다 적을 하나 더 관통합니다.",
+      "translation": "2, 3, 5…번째 샷은 적을 하나 더 관통합니다.",
       "status": "draft",
       "sourceFingerprint": "e196c6b3b31eaad5ec3d05f654962baf88e892d8290eff3b3738512f787d3429"
     },
@@ -5967,7 +5967,7 @@
       "sourceFingerprint": "b682998fa23f8662fe9e5fa2d331d3d5c4cfa2b38b7c16f926e832e142eeb9b7"
     },
     "Relics/double_coins_and_prices_desc2": {
-      "translation": "전투 시작 시 <sprite name=\"COIN_ONLY\">가 {[SKULLTIMATE_GREED_COIN_MOD]}배로 등장하지만, 모든 상점 아이템의 가격이 2배로 증가합니다.",
+      "translation": "전투 시작 시 페그보드에 <sprite name=\"COIN_ONLY\">가 {[SKULLTIMATE_GREED_COIN_MOD]}배로 배치되지만, 모든 구매 비용은 2배가 됩니다.",
       "status": "draft",
       "sourceFingerprint": "3f17f902762be19b9253918192f2aa611f95550412c4b5b3f59365fd479e4470"
     },
@@ -6544,7 +6544,7 @@
       "sourceFingerprint": "b1362e2fd9464efc032dd7eed53099f8f08366a282265cc92faac8ced4144264"
     },
     "Dialogue System/Conversation/Scenario.General.GamblerInvestmentReturn/Entry/01/Dialogue Text": {
-      "translation": "갬블린이 멍한 표정으로 홀로 서 있는 것을 발견했습니다. 당신을 보자마자 표정이 놀라움과 약간의 실망감으로 바뀝니다... \"아, 친구! 다시 만나니 반갑네. 자네 투자로 꽤 많은 수익을 얻었어!\"",
+      "translation": "갬블린이 멍한 표정으로 홀로 서 있는 것을 발견했습니다. 당신을 보자 표정에 놀라움과 약간의 실망감이 스칩니다... \"아, 친구! 다시 만나니 반갑네. 자네가 투자한 돈으로 꽤 큰 수익을 냈어!\"",
       "status": "draft",
       "sourceFingerprint": "334147280d901b93f5b95e7235fc6911adc4883d1ab4ff80fecc8fcf01bf586f"
     },
@@ -6889,7 +6889,7 @@
       "sourceFingerprint": "3941442cb9298ed4cd6228074e8ad1fc66af794366df699e1bf594d4f2cf8a07"
     },
     "Dialogue System/Conversation/Scenario.General.ScaryHaglin/Entry/11/Dialogue Text": {
-      "translation": "구슬을 하나 제거하기",
+      "translation": "구슬 하나 제거하기",
       "status": "draft",
       "sourceFingerprint": "ff1c8b54c26bcf2199694388ab38c55e49e94c17b80b8fa35df919dd7d78dff4"
     },
@@ -7607,7 +7607,7 @@
       "sourceFingerprint": "180b5be39f8bebf287f4b33adc09c25a9686339f1ac9e9ec833bc23dd84d7a38"
     },
     "Enemies/dragon_boss_lore": {
-      "translation": "테사우로수스의 탐욕에는 끝이 없었고, 그가 쌓아둔 물건의 대부분은 페글린에서 훔친 것이지만, 라디아 전역의 금과 장신구도 그 안에 들어 있습니다.",
+      "translation": "테사우로수스의 탐욕에는 끝이 없습니다. 그가 모은 보물 중 상당수는 페글린들에게서 훔친 것이지만, 라디아 곳곳에서 가져온 금과 장신구도 들어 있습니다.",
       "status": "draft",
       "sourceFingerprint": "411657cfd762c08b0e070799bf10a4afe9c2a7a72bfa07c7593823b912e20d9b"
     },
@@ -7622,7 +7622,7 @@
       "sourceFingerprint": "0a414d242470b9981913ba2f4240c99c28b69422ba9d9490de3450aa22d643ba"
     },
     "Enemies/eye_bat_dev": {
-      "translation": "거미줄 페그보드는 게임 플레이 방식에 큰 변화를 준다는 점에서 호불호가 갈리지만, 저희는 광산에서 개발한 깜빡이는 페그와 결합해 새로운 버전의 배티와 웨버를 제작해 새로운 페그보드를 선보이고 싶었습니다.",
+      "translation": "거미줄 페그보드는 게임 방식을 크게 바꿔 호불호가 갈립니다. 저희는 광산에서 개발한 깜빡이는 페그와 결합하고 싶었고, 그래서 배티와 웨버의 새로운 버전을 만들어 옛 페그보드를 떠올리게 하는 페그보드를 구현했습니다.",
       "status": "draft",
       "sourceFingerprint": "081c22567ed4096e35f1812f7110c066f5d93959c252021ff67863af18304377"
     },
@@ -7662,7 +7662,7 @@
       "sourceFingerprint": "9eaf9e1a4798197a8413ec653e47eb017e7a8151cd4cd3da599eb5ad709423c1"
     },
     "Enemies/goblin_sapper_dev": {
-      "translation": "공병 우두머리 유물로 자신을 물리친 모든 페글린 친구들에게 경의를 표합니다...",
+      "translation": "보스 유물인 '공병의 가방'으로 자폭해 본 모든 페글린 플레이어에게 경의를 표합니다...",
       "status": "draft",
       "sourceFingerprint": "6a610b783b973f114846d43f2e796390a58043cbc35377e3266ddd6352cf8e56"
     },
@@ -7692,7 +7692,7 @@
       "sourceFingerprint": "81eb5f8a70ba44b552bdf6bddac42a6c47f6978cae2f4327a3dcf9eee3e191c4"
     },
     "Enemies/goblin_sapper_minion_desc": {
-      "translation": "일반 고블린 공병과 마찬가지로, 이 적들이 공병 대장에 근접해 있을 때 쓰러뜨리면 보스에게 대미지를 줍니다!",
+      "translation": "일반 페글린 공병과 마찬가지로, 이 적들이 공병 대장과 나란히 있을 때 처치하면 자기 보스에게 대미지를 줍니다!",
       "status": "draft",
       "sourceFingerprint": "461599b8e1246739d26d82dca287c0579b49dd5f42c1164f284fcc7f010ed286"
     },
@@ -7717,7 +7717,7 @@
       "sourceFingerprint": "d891f21c99dcd03709a62b055ce7f21ce80c329b480c246d049371d2ca16614c"
     },
     "Enemies/indoor_plant_desc": {
-      "translation": "기사들이 자기 방어(그리고 종종 공격)를 위한 지속적인 실험의 일부인 이 사나운 식물은 야생 식물보다 눈에 띄게 강합니다.",
+      "translation": "기사들이 거점을 지키거나 때로는 공격하는 데 활용하려고 계속 실험해 온 이 사나운 식물은 야생 식물보다 눈에 띄게 강합니다.",
       "status": "draft",
       "sourceFingerprint": "27f1cba701819a145bc925e9acbb680ae8b736d087e56eeaa48e70dec871be5d"
     },
@@ -7902,7 +7902,7 @@
       "sourceFingerprint": "5934dfe4ad760f5c6939edb3b985903d5fcfe5cd8db833fe0432dd10c450c645"
     },
     "Enemies/mimic_miniboss_dev": {
-      "translation": "재미있는 사실: 미믹은 당신이 갖고 있지 않은 희귀한 유물로만 공격합니다. 그래서 모든 희귀한 유물을 가지고 있을 때 미믹을 만나면 위로의 상을 뱉어냅니다!",
+      "translation": "재미있는 사실: 미믹은 당신이 갖고 있지 않은 희귀한 유물로만 공격합니다. 그래서 희귀한 유물을 모두 갖고 있을 때 미믹을 만나면 위로상을 뱉어냅니다!",
       "status": "draft",
       "sourceFingerprint": "4b3dbc77fcd11cb3645de73ad0ddf523d7d378bfe5595fa2f42243e3a016c33e"
     },
@@ -8182,12 +8182,12 @@
       "sourceFingerprint": "30f83b09c3ec64504f4645ab0c1238b30cf9cdebb16e84ac5c2949c6cd1e1c2d"
     },
     "Enemies/slenderlin_dev": {
-      "translation": "초기 디자인에서는 슬렌더린이 자신의 턴에 실제로 돌구슬을 페그보드에 던졌지만, 당시 완성된 전투 시스템에 구현하기에는 지나치게 복잡한 발상이었습니다.",
+      "translation": "초기 설계에서는 슬렌더린이 자기 턴마다 돌덩이를 페그보드에 던졌지만, 당시 전투 시스템이 이미 많이 구축된 뒤라 구현하기에는 지나치게 복잡한 발상이었습니다.",
       "status": "draft",
       "sourceFingerprint": "782e872f52fd8c20234cb1195702802199e66163a0b7fc8265204cc499822e07"
     },
     "Enemies/slenderlin_lore": {
-      "translation": "이 돌연변이 페글린은 기이하게 마른 몸과 갈수록 강해지는 돌구슬로 마주치는 모두를 두렵게 합니다. 원래는 수정의 힘으로 마을을 지키려던 선량한 페글린이었지만, 곧 대상 없는 분노에 사로잡혔다고 합니다.",
+      "translation": "이 돌연변이 페글린은 기이하게 마른 몸과 갈수록 강력해지는 돌덩이 때문에 마주치는 이들에게 두려움을 줍니다. 원래는 수정의 힘으로 마을을 지키려던 선량한 페글린이었지만, 곧 맹목적인 분노에 사로잡혔다고 합니다.",
       "status": "draft",
       "sourceFingerprint": "df41a69b6fa584fc7c15cde61d3eec7422b8f25ad0353174ce52603289ad09d4"
     },
@@ -8197,7 +8197,7 @@
       "sourceFingerprint": "17b61088b6dc4ea7c9e4b2fc290af82e6b009b16eaa8b83fa4e7cc82d45a027a"
     },
     "Enemies/slime_blue_desc": {
-      "translation": "늘 둘째처럼 소외감을 느끼는 파랑 슬라임드롭은 빨강 슬라임드롭보다 강하고 초록 슬라임드롭보다 민첩해지려 애씁니다. 엘리트 슬라임글롭이 되려고 숲에서 훈련하는 모습을 자주 볼 수 있습니다.",
+      "translation": "늘 둘째처럼 소외감을 느끼는 파랑 슬라임드롭은 빨강 슬라임드롭보다 강하고 초록 슬라임드롭보다 민첩해지려 애씁니다. 정예 슬라임글롭이 되려고 숲에서 훈련하는 모습을 자주 볼 수 있습니다.",
       "status": "draft",
       "sourceFingerprint": "336e7928984c2dcf86344eaeb934b518534845a021700b87303c5c8a41d2b211"
     },
@@ -8222,7 +8222,7 @@
       "sourceFingerprint": "f53da667f4acba356d9fc8c56adf65ddb64b5a0340a827c21ad82646db620c1e"
     },
     "Enemies/slime_boss_dev": {
-      "translation": "슬라임 보스는 엄밀히 말하면 움직이는 동안 2턴이 주어지기 때문에 감염과 얽힘 같은 상태 효과가 2배 빠르게 발동합니다. 저희는 얽힘이 이 보스에 영향을 미치되 얽힘 하나로 완전히 막을 수는 없는 적절한 절충점을 찾고자 했습니다.",
+      "translation": "슬라임 보스는 움직이는 동안 엄밀히 말해 두 턴을 갖습니다. 그래서 감염이나 얽힘 같은 상태 효과도 두 배 빠르게 발동합니다. 저희는 가시덤볼 하나만으로 보스를 완전히 무력화할 수는 없으면서도 얽힘이 이 보스에게 효과를 내도록 적절한 균형점을 찾고자 했습니다.",
       "status": "draft",
       "sourceFingerprint": "e9e68b3b59d6a8296ae715c0b210cd38f7adbaabde0ab0d2d74deaf7983aa7ff"
     },
@@ -8277,7 +8277,7 @@
       "sourceFingerprint": "754a78adfca30897f8b2c5657e4944635bd63ff73f2fb442d3cd6c494c831c5f"
     },
     "Enemies/slime_miniboss_desc": {
-      "translation": "평균보다 큰 이 슬라임은 당신에게 따질 게 있답니다! 뼈는 없지만 무슨 뜻인지 아시겠죠? 슬라임 덩어리가 보드에 떨어질 때까지 <sprite name=\"BOMB\">을 아껴 두면 무사히 탈출할 가능성이 더 커집니다.",
+      "translation": "평균보다 큰 이 슬라임은 당신에게 따질 게 있답니다! 뼈는 없지만 무슨 뜻인지 아시겠죠? 슬라임글롭이 보드에 나타날 때까지 <sprite name=\"BOMB\">을 아껴 두면 무사히 빠져나갈 가능성이 더 커집니다.",
       "status": "draft",
       "sourceFingerprint": "41802a5a97b72ff934e2a0f44d5528b12eb30fc8347bc7ed256ef743f28517a3"
     },
@@ -8647,12 +8647,12 @@
       "sourceFingerprint": "64f96fe55c40253eac8460de3635d1e16e56b853156f6c07078e2335b1d95cc8"
     },
     "Enemies/slobelisk_lore": {
-      "translation": "오랫동안 떠돌던 블랙홀 슬라임드롭들은 때때로 오벨리스크의 지전류 에너지가 내면의 공허를 유일하게 억제해 준다는 사실을 발견하곤 합니다. 이 연결이 형성되면 특정 행성의 지맥에 동화되어 독특하고 비범한 힘을 발휘하게 됩니다.",
+      "translation": "오랫동안 떠돈 블랙홀 슬라임드롭은 오벨리스구에 깃든 대지의 힘이 내면의 공허를 억제해 준다는 사실을 발견하기도 합니다. 이 연결이 형성되면 특정 행성의 지맥에 동화되어 독특하고 비범한 힘을 발휘합니다.",
       "status": "draft",
       "sourceFingerprint": "f24605013806bd4077aeef6e66c07c9080f3938a94921ccac2924b7130499250"
     },
     "Enemies/slobelisk_dev": {
-      "translation": "저희는 오벨리스크 같은 조형물이 다시 등장해 이 미니보스의 효과 구슬을 들고 있는 비주얼을 무척 좋아했습니다. 하지만 처음에 오벨리스크 무리가 어떻게 공격하게 할지 고민이었죠. 해결책요? 슬라임으로 만드는 거였습니다. 해결책은 언제나 슬라임입니다.",
+      "translation": "저희는 오벨리스구를 닮은 조형물이 다시 등장해 이 미니보스에 대응하는 효과 구슬을 들고 있는 모습을 무척 좋아했습니다. 하지만 처음에는 오벨리스구 무리가 어떻게 공격하게 할지 고민이었죠. 해결책은요? 슬라임으로 만드는 거였습니다. 해결책은 언제나 슬라임입니다.",
       "status": "draft",
       "sourceFingerprint": "0503c2668f267ff91c2f6aed6a15efc4fce32a25502efb8f994ae9346635ca5a"
     },
@@ -8797,7 +8797,7 @@
       "sourceFingerprint": "4a742280ea6c33ac3282e5891e3338a49495561b2bcf51646a0093a7cdaeb52c"
     },
     "Tutorial/dagger1": {
-      "translation": "단구는 일반 공격의 대미지는 매우 낮지만... 치명타 <sprite name=\"CRIT_PEG\">가 발생하면 엄청나게 강합니다!",
+      "translation": "단구는 일반 공격의 대미지가 매우 낮지만... <sprite name=\"CRIT_PEG\">를 맞혀 치명타를 내면 엄청나게 강합니다!",
       "status": "draft",
       "sourceFingerprint": "bd2c179c8aef73ba59c83a6663a0fbfe4e1b8ae3fac76d6e7e568bf8149bd9e8"
     },
@@ -8872,7 +8872,7 @@
       "sourceFingerprint": "8fa025533911700a34d8c3b689cc89364c7a318fb0defc346a42b5d8c3bc1b57"
     },
     "Achievements/NEW_ACHIEVEMENT_16_10_DESC": {
-      "translation": "한 번의 샷으로 1000개 이상의 페그를 맞추세요.",
+      "translation": "한 번의 샷으로 페그를 1000개 이상 맞히세요.",
       "status": "draft",
       "sourceFingerprint": "f4130234efb9911bdf2a2ee5fba5819167b80617f5b2d2b9892a6296462d3aab"
     },
@@ -8972,7 +8972,7 @@
       "sourceFingerprint": "59c2e5487a2ffd88d6e5e995ccf055f15236f285b46530305d0aa740437485ef"
     },
     "Achievements/NEW_ACHIEVEMENT_16_1_DESC": {
-      "translation": "슬라임 대장을 처치하세요.",
+      "translation": "슬라임 보스를 처치하세요.",
       "status": "draft",
       "sourceFingerprint": "4ecda7a141617d19f85ab7729b35899d0de92466a6cb5237852d9b39a5232171"
     },
@@ -8982,7 +8982,7 @@
       "sourceFingerprint": "e81ef849df1b527a54ef49e4a54229e41492bd87d22fe8412553ee3e36a52428"
     },
     "Achievements/NEW_ACHIEVEMENT_16_20_DESC": {
-      "translation": "적 하나에게 감염을 40회 이상 주세요.",
+      "translation": "적 하나의 감염 수치를 40 이상으로 만드세요.",
       "status": "draft",
       "sourceFingerprint": "d2de9839f82b66c5f7a8c5c3233952b5964be51d84606ae54be37dadb344c17c"
     },
@@ -9202,7 +9202,7 @@
       "sourceFingerprint": "d1ac00914be66271171b1394345face4a3316b29bca57962e37727d0a7a10f24"
     },
     "Achievements/NEW_ACHIEVEMENT_16_34_DESC": {
-      "translation": "광산 보스를 쓰러뜨리다가 사망하세요.",
+      "translation": "광산 보스를 처치하는 동시에 사망하세요.",
       "status": "draft",
       "sourceFingerprint": "c78d42967100d1d3e17666b8a8546f53e52d7cf13f82bcebda72fbd0115c3953"
     },
@@ -9232,7 +9232,7 @@
       "sourceFingerprint": "1d8aad26bbfed9a9a4644f1d4c3c7b0318a6f930efb54c5ee5ecaa11ecb988de"
     },
     "Achievements/NEW_ACHIEVEMENT_16_37_DESC": {
-      "translation": "자신의 직업 유물만 보유한 채 한 판을 승리하세요.",
+      "translation": "시작 유물만 보유한 채 한 회차를 클리어하세요.",
       "status": "draft",
       "sourceFingerprint": "1f369c9720544c3ce971dc6f0878cb9f48ebfed83c96cc848f9d52d5eaf7e04d"
     },
@@ -9242,7 +9242,7 @@
       "sourceFingerprint": "e3b0fd03beda1930ec8d8e57b062b0523ed50ada940f13053c8c259aa355bc9d"
     },
     "Achievements/NEW_ACHIEVEMENT_16_38_DESC": {
-      "translation": "레벨 1 구슬만 사용해 한 판을 승리하세요.",
+      "translation": "레벨 1 구슬만 보유한 채 한 회차를 클리어하세요.",
       "status": "draft",
       "sourceFingerprint": "bac5e4eb2843b961cafa8b2daa8303da6c2354b2c9703be1b0b46b3af645d318"
     },
@@ -9392,7 +9392,7 @@
       "sourceFingerprint": "91a42b5325cba3658491708830f5bcc7f79de87cce613609ea58d6fcf745bdba"
     },
     "Trading Cards/bg_13_title": {
-      "translation": "숨어든 슬렌더린",
+      "translation": "숨어 있는 슬렌더린",
       "status": "draft",
       "sourceFingerprint": "4de620c32a1fbac01e40daadcbf5ead102ea240a1dc4d16d9c1ae8d01ee33613"
     },
