@@ -23,13 +23,23 @@ from .extract import (
 )
 from .fingerprints import source_fingerprint
 from .patching import create_overlay_patch
+from .release import build_release_candidate
 from .validation import index_terms_csv, lint_overrides, validate
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_TRANSLATIONS = PROJECT_ROOT / "translation" / "terms"
+DEFAULT_SOURCE_LOCK = PROJECT_ROOT / "translation" / "source-lock.json"
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="peglin-l10n")
+    parser = argparse.ArgumentParser(
+        prog="peglin-l10n",
+        epilog=(
+            "source-lock.json cannot be refreshed from the public CSVs because they "
+            "intentionally omit game source text. Maintainers must regenerate it from "
+            "a private extraction when Peglin updates."
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     extract = subparsers.add_parser("extract", help="extract the installed I2 language table")
@@ -69,9 +79,12 @@ def _parser() -> argparse.ArgumentParser:
         default=PROJECT_ROOT / "translation" / "glossary.csv",
     )
     build_patch.add_argument(
+        "--translations",
         "--overrides",
+        dest="overrides",
         type=Path,
-        default=PROJECT_ROOT / "translation" / "overrides.json",
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
     )
 
     build_candidate = subparsers.add_parser(
@@ -119,9 +132,35 @@ def _parser() -> argparse.ArgumentParser:
         default=PROJECT_ROOT / "translation" / "glossary.csv",
     )
     build_candidate.add_argument(
+        "--translations",
         "--overrides",
+        dest="overrides",
         type=Path,
-        default=PROJECT_ROOT / "translation" / "overrides.json",
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
+    )
+
+    release = subparsers.add_parser(
+        "build-release-candidate",
+        help="build source-locked release artifacts without a Peglin installation",
+    )
+    release.add_argument(
+        "--source-revision",
+        required=True,
+        help="Git revision recorded in release provenance",
+    )
+    release.add_argument("--output-dir", required=True, type=Path)
+    release.add_argument(
+        "--translations",
+        type=Path,
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
+    )
+    release.add_argument(
+        "--source-lock",
+        type=Path,
+        default=DEFAULT_SOURCE_LOCK,
+        help="public source metadata lock",
     )
 
     lint = subparsers.add_parser(
@@ -129,9 +168,12 @@ def _parser() -> argparse.ArgumentParser:
         help="validate override structure without requiring the installed game",
     )
     lint.add_argument(
+        "--translations",
         "--overrides",
+        dest="overrides",
         type=Path,
-        default=PROJECT_ROOT / "translation" / "overrides.json",
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
     )
 
     validator = subparsers.add_parser("validate", help="validate a source CSV and overrides")
@@ -142,9 +184,12 @@ def _parser() -> argparse.ArgumentParser:
         default=PROJECT_ROOT / "translation" / "glossary.csv",
     )
     validator.add_argument(
+        "--translations",
         "--overrides",
+        dest="overrides",
         type=Path,
-        default=PROJECT_ROOT / "translation" / "overrides.json",
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
     )
     validator.add_argument(
         "--source-manifest",
@@ -156,9 +201,12 @@ def _parser() -> argparse.ArgumentParser:
     diff.add_argument("--old", required=True, type=Path, help="older terms.csv")
     diff.add_argument("--new", required=True, type=Path, help="newer terms.csv")
     diff.add_argument(
+        "--translations",
         "--overrides",
+        dest="overrides",
         type=Path,
-        default=PROJECT_ROOT / "translation" / "overrides.json",
+        default=DEFAULT_TRANSLATIONS,
+        help="public translation CSV directory",
     )
     diff.add_argument("--output", type=Path, help="write JSON report to this path")
 
@@ -299,6 +347,7 @@ def _run_build_candidate(args: argparse.Namespace) -> int:
             args.candidate_dir,
             args.plugin_project,
             args.dotnet,
+            project_root=PROJECT_ROOT,
         )
     except (ExtractionError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Client candidate generation stopped safely: {exc}", file=sys.stderr)
@@ -308,6 +357,23 @@ def _run_build_candidate(args: argparse.Namespace) -> int:
     print(f"Translated terms: {len(result['terms'])}")
     print(f"Overlay: {overlay_path}")
     print(f"Candidate: {candidate_path}")
+    return 0
+
+
+def _run_build_release_candidate(args: argparse.Namespace) -> int:
+    try:
+        paths = build_release_candidate(
+            args.translations,
+            args.source_lock,
+            PROJECT_ROOT,
+            args.source_revision,
+            args.output_dir,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Release candidate generation stopped safely: {exc}", file=sys.stderr)
+        return 2
+    for label, path in paths.items():
+        print(f"{label}: {path}")
     return 0
 
 
@@ -386,6 +452,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_build_patch(args)
         if args.command == "build-candidate":
             return _run_build_candidate(args)
+        if args.command == "build-release-candidate":
+            return _run_build_release_candidate(args)
         if args.command == "lint-overrides":
             return _run_lint_overrides(args)
         if args.command == "validate":

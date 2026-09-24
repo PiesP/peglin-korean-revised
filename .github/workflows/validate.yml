@@ -25,10 +25,12 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
         with:
           version: "0.9.7"
-          enable-cache: true
+          enable-cache: false
       - name: Install locked dependencies
         run: uv sync --locked
       - name: Compile package
         run: uv run python -m compileall -q src/peglin_l10n
+      - name: Run package tests
+        run: uv run --locked python -m unittest discover -s tests -v
       - name: Validate override metadata
         run: uv run peglin-l10n lint-overrides

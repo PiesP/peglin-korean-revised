@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 번역 기여 안내
+    url: https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md
+    about: 번역 수정 방법과 Pull Request 작성 규칙을 확인합니다.

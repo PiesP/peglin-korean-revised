@@ -1,0 +1,318 @@
+name: Release Korean translation patch
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "translation/terms/**"
+      - "translation/source-lock.json"
+      - "translation/glossary.csv"
+      - "runtime/PeglinKoreanRevised.dll"
+      - "plugin/**"
+      - "src/peglin_l10n/**"
+      - "LICENSE"
+      - "TRANSLATION-NOTICE.txt"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/scripts/verify_release_source.py"
+      - ".github/workflows/release-translation.yml"
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: translation-release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-release-source:
+    name: Verify approved contribution source
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.verify.outputs.eligible }}
+    steps:
+      - name: Check out the source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+      - name: Verify reviewed pull request or administrator issue update
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          EVENT_PATH: ${{ github.event_path }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify_release_source.py
+
+  build:
+    name: Build patch from reviewed source
+    needs: verify-release-source
+    if: needs.verify-release-source.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          version: "0.9.7"
+          enable-cache: false
+      - name: Install locked dependencies
+        run: uv sync --locked --python 3.11
+      - name: Validate contributor data
+        run: uv run --locked peglin-l10n lint-overrides
+      - name: Build release files
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          OUTPUT_DIR: ${{ runner.temp }}/peglin-release
+        run: >-
+          uv run --locked peglin-l10n build-release-candidate
+          --source-revision "$SOURCE_SHA"
+          --output-dir "$OUTPUT_DIR"
+      - name: Upload release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: peglin-translation-release-${{ github.sha }}
+          path: ${{ runner.temp }}/peglin-release/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs: [verify-release-source, build]
+    if: needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download files built by this workflow
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: peglin-translation-release-${{ github.sha }}
+          path: ${{ runner.temp }}/peglin-release
+      - name: Verify provenance and checksums
+        id: verify
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_DIR: ${{ runner.temp }}/peglin-release
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import zipfile
+          from pathlib import Path
+
+          root = Path(os.environ["RELEASE_DIR"])
+          source_sha = os.environ["SOURCE_SHA"]
+          if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise SystemExit("The source commit is not a full Git SHA.")
+
+          required = {
+              "release-manifest.json",
+              "release-notes.md",
+              "SHA256SUMS.txt",
+              "LICENSE",
+              "TRANSLATION-NOTICE.txt",
+          }
+          if not root.is_dir() or any(not (root / name).is_file() for name in required):
+              raise SystemExit("The release artifact is missing required files.")
+
+          manifest = json.loads((root / "release-manifest.json").read_text(encoding="utf-8"))
+          if not isinstance(manifest, dict):
+              raise SystemExit("The release manifest root is invalid.")
+          if (
+              manifest.get("schemaVersion") != 1
+              or manifest.get("kind") != "peglin-korean-release-provenance"
+          ):
+              raise SystemExit("The release manifest kind is invalid.")
+          if manifest.get("sourceRevision") != source_sha:
+              raise SystemExit("The release manifest does not match the verified source commit.")
+          status = manifest.get("status")
+          if status not in {"draft", "approved"}:
+              raise SystemExit("The translation status is invalid.")
+
+          checksums_path = root / "SHA256SUMS.txt"
+          checksum_digests = {}
+          for line in checksums_path.read_text(encoding="utf-8").splitlines():
+              match = re.fullmatch(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+)", line)
+              if not match or match.group(2) in checksum_digests:
+                  raise SystemExit("The checksum file contains an invalid or duplicate entry.")
+              checksum_digests[match.group(2)] = match.group(1)
+          expected = set(checksum_digests)
+          if not {"release-manifest.json", "release-notes.md", "LICENSE", "TRANSLATION-NOTICE.txt"} <= expected:
+              raise SystemExit("The checksum file does not cover the required release files.")
+
+          items = list(root.iterdir())
+          if any(not path.is_file() or path.is_symlink() for path in items):
+              raise SystemExit("The release artifact contains an unexpected directory or symlink.")
+          actual = {path.name for path in items if path.name != checksums_path.name}
+          if actual != expected:
+              raise SystemExit("The release files do not match the checksum inventory.")
+          for name in expected:
+              contents = (root / name).read_bytes()
+              if hashlib.sha256(contents).hexdigest() != checksum_digests[name]:
+                  raise SystemExit(f"Checksum mismatch: {name}")
+
+          manifest_artifacts = manifest.get("artifacts")
+          if (
+              not isinstance(manifest_artifacts, dict)
+              or set(manifest_artifacts) != expected - {"release-manifest.json"}
+          ):
+              raise SystemExit("The release manifest artifact inventory is invalid.")
+          for name, digest in manifest_artifacts.items():
+              if not isinstance(digest, str) or digest != checksum_digests.get(name):
+                  raise SystemExit(f"Release manifest digest mismatch: {name}")
+
+          overlay_files = [
+              name
+              for name in expected
+              if name.endswith(".json") and name != "release-manifest.json"
+          ]
+          if len(overlay_files) != 1:
+              raise SystemExit("The JSON translation overlay is missing.")
+          archives = [name for name in expected if name.endswith(".zip")]
+          if len(archives) != 1:
+              raise SystemExit("The installable patch archive is missing.")
+
+          archive_path = root / archives[0]
+          expected_members = {
+              "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll",
+              "BepInEx/plugins/PeglinKoreanRevised/overlay.json",
+              "BepInEx/plugins/PeglinKoreanRevised/manifest.json",
+              "README.md",
+              "LICENSE",
+              "TRANSLATION-NOTICE.txt",
+          }
+          with zipfile.ZipFile(archive_path) as archive:
+              members = archive.namelist()
+              if len(members) != len(expected_members) or set(members) != expected_members:
+                  raise SystemExit("The install archive contains unexpected or duplicate members.")
+              if archive.testzip() is not None:
+                  raise SystemExit("The install archive failed its CRC check.")
+              package_manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+              archive_overlay_bytes = archive.read("BepInEx/plugins/PeglinKoreanRevised/overlay.json")
+              archive_license = archive.read("LICENSE")
+              archive_translation_notice = archive.read("TRANSLATION-NOTICE.txt")
+
+          overlay_path = root / overlay_files[0]
+          overlay_bytes = overlay_path.read_bytes()
+          overlay = json.loads(overlay_bytes)
+          if archive_overlay_bytes != overlay_bytes:
+              raise SystemExit("Standalone overlay and install archive overlay differ.")
+          if archive_license != (root / "LICENSE").read_bytes():
+              raise SystemExit("Install archive MIT License differs from the release notice.")
+          if archive_translation_notice != (root / "TRANSLATION-NOTICE.txt").read_bytes():
+              raise SystemExit("Install archive translation notice differs from the release notice.")
+
+          if package_manifest.get("kind") != "peglin-korean-client-candidate":
+              raise SystemExit("The install archive manifest kind is invalid.")
+          if (
+              manifest.get("game") != "Peglin"
+              or manifest.get("steamAppId") != "1296610"
+              or manifest.get("language") != "ko"
+              or overlay.get("kind") != "peglin-korean-overlay"
+              or overlay.get("game") != manifest.get("game")
+              or overlay.get("language") != manifest.get("language")
+              or package_manifest.get("game") != manifest.get("game")
+              or package_manifest.get("steamAppId") != manifest.get("steamAppId")
+              or package_manifest.get("language") != manifest.get("language")
+              or package_manifest.get("source") != overlay.get("source")
+          ):
+              raise SystemExit("Game, language, or source metadata disagrees across release files.")
+          overlay_terms = overlay.get("terms")
+          if (
+              not isinstance(overlay_terms, dict)
+              or not overlay_terms
+              or len(overlay_terms) != manifest.get("translationCount")
+              or package_manifest.get("translationCount") != len(overlay_terms)
+          ):
+              raise SystemExit("Translation counts disagree across release files.")
+          source = manifest.get("source")
+          overlay_source = overlay.get("source")
+          package_runtime = package_manifest.get("runtime")
+          if (
+              not isinstance(source, dict)
+              or not isinstance(overlay_source, dict)
+              or not isinstance(package_runtime, dict)
+              or overlay_source.get("steamAppId") != manifest.get("steamAppId")
+              or source.get("steamBuildId") != overlay_source.get("steamBuildId")
+              or source.get("unityVersion") != overlay_source.get("unityVersion")
+              or source.get("resourcesAssetsSha256") != overlay_source.get("assetSha256")
+              or source.get("assemblyCSharpSha256") != package_runtime.get("assemblyCSharpSha256")
+          ):
+              raise SystemExit("Peglin source metadata disagrees across release files.")
+          package_files = package_manifest.get("files")
+          expected_hashes = {
+              "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll",
+              "BepInEx/plugins/PeglinKoreanRevised/overlay.json",
+          }
+          if not isinstance(package_files, dict) or set(package_files) != expected_hashes:
+              raise SystemExit("The install archive manifest file inventory is invalid.")
+          with zipfile.ZipFile(archive_path) as archive:
+              for name, digest in package_files.items():
+                  if not isinstance(digest, str) or hashlib.sha256(archive.read(name)).hexdigest() != digest:
+                      raise SystemExit(f"Install archive manifest hash mismatch: {name}")
+          if overlay.get("status") != status or package_manifest.get("status") != status:
+              raise SystemExit("Translation status disagrees across release files.")
+          runtime = manifest.get("runtime")
+          if (
+              not isinstance(runtime, dict)
+              or runtime.get("pluginVersion") != package_runtime.get("pluginVersion")
+              or runtime.get("sha256") != package_files.get(
+                  "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"
+              )
+          ):
+              raise SystemExit("Runtime metadata disagrees across release files.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"prerelease={'true' if status == 'draft' else 'false'}\n")
+              output.write(f"tag=peglin-ko-{source_sha[:12]}\n")
+              output.write(f"overlay={overlay_files[0]}\n")
+          PY
+      - name: Create release for the verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_DIR: ${{ runner.temp }}/peglin-release
+          RELEASE_TAG: ${{ steps.verify.outputs.tag }}
+          PRERELEASE: ${{ steps.verify.outputs.prerelease }}
+          OVERLAY_NAME: ${{ steps.verify.outputs.overlay }}
+        run: |
+          set -euo pipefail
+          args=(--target "$SOURCE_SHA" --title "Peglin Korean Revised ${SOURCE_SHA:0:12}" --notes-file "$RELEASE_DIR/release-notes.md")
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" \
+            "$RELEASE_DIR/$OVERLAY_NAME" \
+            "$RELEASE_DIR"/*.zip \
+            "$RELEASE_DIR/LICENSE" \
+            "$RELEASE_DIR/TRANSLATION-NOTICE.txt" \
+            "$RELEASE_DIR/release-notes.md" \
+            "$RELEASE_DIR/release-manifest.json" \
+            "$RELEASE_DIR/SHA256SUMS.txt"

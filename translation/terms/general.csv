@@ -1,0 +1,28 @@
+Term,Translation,Status,ReviewedBuildId,Comment
+Bomb,폭탄,draft,,
+Crit Peg,치명타 페그,draft,,
+Crit!,치명타!,draft,,
+OR,또는,draft,,
+Refresh Peg,새로고침 페그,draft,,
+Relic,유물,draft,,
+Reloading...,재장전 중...,draft,,
+Special Pegs,특수 페그,draft,,
+dodge_text,회피!,draft,,
+language_incomplete_warning,경고: 이 언어는 아직 완전히 번역되지 않았습니다. 번역에 참여하고 싶다면 Discord의 현지화 채널에 참여해 주세요!,draft,,
+miss_text,빗나감!,draft,,
+multi_crit,치명타 x{[CRIT_COUNT]}!,draft,,
+overkill_stun,기절...,draft,,
+peg,페그,draft,,
+peglin_features_list,"특징:
+강력한 구슬과 유물을 모아 강화하고, 앞을 가로막는 몬스터와 보스를 물리치세요.
+파칭코식 전투로 적과 싸우세요. 페그를 더 많이 맞힐수록 더 큰 대미지를 줄 수 있습니다. 치명타 물약과 새로고침 물약, 폭탄을 현명하게 사용하세요.
+매번 세 부분으로 나뉜 새 지도를 탐험하세요. 여정마다 각기 다른 구슬과 적, 깜짝 요소가 기다립니다.",draft,,"Draft storefront copy. Uses established terms for orbs, relics, pegs, and Pachinko; keeps 3-part map wording literal pending contextual review."
+peglin_game_name,페글린,draft,,
+peglin_lore_description,"기억이 닿는 한 드래곤들은 줄곧 페글린을 터뜨리고 당신의 골드를 훔쳐 갔습니다. 이제 참을 만큼 참았습니다. 숲을 지나 요새를 정복하고 드래곤 둥지 깊숙이 들어가 빼앗긴 것을 되찾고, 드래곤들에게 따끔한 교훈을 안겨 주세요.",draft,,
+peglin_mechanic_description,"페글린은 『Peggle』과 『Slay the Spire』를 결합한 듯한 게임입니다. 적은 강하고, 쓰러지면 모험이 끝납니다. 대신 특수 효과가 있는 강력한 구슬과 적은 물론 전투에 쓰이는 물리 법칙까지 바꾸는 놀라운 유물을 활용할 수 있습니다.",draft,,
+peglin_short_description,"페글린은 파칭코 로그라이크 게임입니다. 특별한 구슬을 모으고 페그를 터뜨려 적에게 대미지를 주세요. 판도를 완전히 바꾸는 유물을 획득해 매번 새로운 모험을 즐기고, 신중하게 조준하며 독특한 턴제 RPG에서 살아남으세요!",draft,,
+peglin_supporter_dlc_desc,"이 후원자 팩은 페글린을 즐겨 주셨고, 개발팀에 커피 한 잔을 사 주며 페글린과 앞으로 출시될 게임의 개발을 후원하고 싶은 분들을 위한 상품입니다!
+
+[b]안내:[/b] 이 DLC를 구매해야만 이용할 수 있는 콘텐츠를 따로 만들지 않았습니다. 게임 내 변경 사항은 메인 메뉴에 작은 미다스 페글린 조각상을 추가하는 것뿐입니다!",draft,,Draft storefront copy. Uses 후원자 팩 for supporter pack and explains that the DLC adds no gated gameplay content.
+peglin_supporter_dlc_desc_short,이 팩은 페글린의 지속적인 개발과 앞으로 출시될 게임의 개발을 후원합니다!,draft,,Draft storefront copy; future games is kept plural and general.
+peglin_very_short_description,매번 색다른 경험의 파칭코 로그라이크 게임!,draft,,
