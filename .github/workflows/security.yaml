@@ -1,0 +1,110 @@
+name: Security Scanning
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Resolve the scanner runtime to an immutable image digest; review updates at
+  # https://github.com/google/osv-scanner-action/releases.
+  OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner-action@sha256:71ad04ab2f8798be47870f9b18817ad317c2f8f2f97aa6726ba10d5578bc174a
+
+jobs:
+  codeql:
+    name: CodeQL Analysis (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: csharp
+            build-mode: none
+          - language: python
+            build-mode: none
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: /language:${{ matrix.language }}
+
+  osv:
+    name: OSV Dependency Scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scan the uv lockfile
+        id: scan
+        run: |
+          set -euo pipefail
+          result_dir="$RUNNER_TEMP/osv-results"
+          result_path="$result_dir/osv-results.sarif"
+          install -d -m 0700 "$result_dir"
+          rm -f "$result_path"
+
+          scan_status=0
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/src:ro" \
+            --volume "$result_dir:/results" \
+            --workdir /src \
+            "$OSV_SCANNER_IMAGE" \
+            --format=sarif \
+            --output-file=/results/osv-results.sarif \
+            --lockfile=uv.lock \
+            --lockfile=plugin/packages.lock.json \
+            . || scan_status=$?
+
+          if [[ ! -s "$result_path" ]]; then
+            echo "OSV-Scanner did not produce a SARIF report." >&2
+            exit "$((scan_status > 0 ? scan_status : 1))"
+          fi
+          echo "report=true" >> "$GITHUB_OUTPUT"
+
+          if ((scan_status > 1)); then
+            echo "OSV-Scanner failed before completing the scan (exit $scan_status)." >&2
+            exit "$scan_status"
+          fi
+          if ((scan_status == 1)); then
+            echo "::warning::Known vulnerable dependencies were found; review the Security tab."
+          fi
+      - name: Upload OSV results to code scanning
+        if: ${{ !cancelled() && steps.scan.outputs.report == 'true' }}
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: ${{ runner.temp }}/osv-results/osv-results.sarif
+          category: osv-scanner
