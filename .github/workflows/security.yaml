@@ -32,7 +32,7 @@ jobs:
           - language: actions
             build-mode: none
           - language: csharp
-            build-mode: none
+            build-mode: manual
           - language: python
             build-mode: none
     permissions:
@@ -44,12 +44,73 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Build only the public API reference stubs before CodeQL tracing. The
+      # real Peglin and Unity managed DLLs are not copied to hosted runners.
+      - name: Build CodeQL reference stubs
+        if: ${{ matrix.language == 'csharp' }}
+        env:
+          CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
+        run: |
+          set -euo pipefail
+          dotnet restore .github/codeql-reference-stubs/UnityEngine/UnityEngine.csproj \
+            --locked-mode --configfile plugin/NuGet.Config --nologo
+          dotnet restore .github/codeql-reference-stubs/Assembly-CSharp/Assembly-CSharp.csproj \
+            --locked-mode --configfile plugin/NuGet.Config --nologo
+          dotnet restore .github/codeql-reference-stubs/Newtonsoft.Json/Newtonsoft.Json.csproj \
+            --locked-mode --configfile plugin/NuGet.Config --nologo
+          dotnet build .github/codeql-reference-stubs/UnityEngine/UnityEngine.csproj \
+            --no-restore --configuration Release --verbosity minimal --nologo
+          dotnet build .github/codeql-reference-stubs/Assembly-CSharp/Assembly-CSharp.csproj \
+            --no-restore --configuration Release --verbosity minimal --nologo
+          dotnet build .github/codeql-reference-stubs/Newtonsoft.Json/Newtonsoft.Json.csproj \
+            --no-restore --configuration Release --verbosity minimal --nologo
+
+          install -d -m 0700 "$CODEQL_REFERENCE_DIR"
+          cp .github/codeql-reference-stubs/UnityEngine/bin/Release/net46/UnityEngine.dll \
+            .github/codeql-reference-stubs/UnityEngine/bin/Release/net46/UnityEngine.CoreModule.dll \
+            .github/codeql-reference-stubs/Assembly-CSharp/bin/Release/net46/Assembly-CSharp.dll \
+            .github/codeql-reference-stubs/Newtonsoft.Json/bin/Release/net46/Newtonsoft.Json.dll \
+            "$CODEQL_REFERENCE_DIR/"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+      - name: Restore C# plugin dependencies
+        if: ${{ matrix.language == 'csharp' }}
+        env:
+          CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
+        run: >-
+          dotnet restore plugin/PeglinKoreanRevised.csproj
+          --locked-mode
+          --configfile plugin/NuGet.Config
+          --nologo
+          -p:PeglinManagedDir="$CODEQL_REFERENCE_DIR"
+      - name: Build C# plugin for CodeQL
+        if: ${{ matrix.language == 'csharp' }}
+        env:
+          CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
+        run: |
+          set -euo pipefail
+          targets="$RUNNER_TEMP/peglin-codeql.targets"
+          cat > "$targets" <<'XML'
+          <Project>
+            <Target Name="ExcludeGameNetstandardReferenceForCodeQL" BeforeTargets="ResolveAssemblyReferences">
+              <ItemGroup>
+                <Reference Remove="netstandard" />
+              </ItemGroup>
+            </Target>
+          </Project>
+          XML
+          dotnet build plugin/PeglinKoreanRevised.csproj \
+            --no-restore \
+            --configuration Release \
+            --verbosity minimal \
+            --nologo \
+            -p:PeglinManagedDir="$CODEQL_REFERENCE_DIR" \
+            -p:CustomAfterMicrosoftCommonTargets="$targets" \
+            -p:ContinuousIntegrationBuild=true
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
