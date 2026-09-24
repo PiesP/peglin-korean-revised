@@ -15,8 +15,6 @@ grant them. Those permissions do not replace permission from Peglin rights
 holders where it is required.
 The contribution terms are published at
 https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md.
-The contribution terms are published at
-https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md.
 
 Peglin Korean Revised is an unofficial community project and is not affiliated
 with or endorsed by Red Nexus Games, IndieArk, or BlitWorks Games.
@@ -35,8 +33,6 @@ LICENSE의 MIT 라이선스는 프로젝트가 직접 작성한 코드, 도구�
 그 허락은 필요한 경우 Peglin 권리자의 허락을 대신하지 않습니다.
 기여 조건은 다음 문서에서 확인할 수 있습니다.
 https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md
-기여 조건은 https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md 에서
-확인할 수 있습니다.
 
 Peglin Korean Revised는 Red Nexus Games, IndieArk 또는 BlitWorks Games와
 제휴하거나 이들의 승인을 받은 프로젝트가 아닙니다.
