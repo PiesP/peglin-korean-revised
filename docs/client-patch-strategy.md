@@ -33,10 +33,10 @@ The plugin in plugin/Plugin.cs performs these steps:
 
 1. Reads the adjacent overlay.json and manifest.json, checks their metadata,
    and verifies the plugin and overlay hashes recorded in the manifest.
-2. Hashes Peglin_Data/resources.assets and
-   Peglin_Data/Managed/Assembly-CSharp.dll on worker threads. It stops without
-   applying translations if either file differs from the candidate's recorded
-   hash.
+2. In Unity's Start lifecycle method, hashes Peglin_Data/resources.assets and
+   Peglin_Data/Managed/Assembly-CSharp.dll synchronously before initializing
+   localization. It stops without applying translations if either file differs
+   from the candidate's recorded hash.
 3. Initializes I2 Localization, waits for its sources during startup and after
    scene loads, finds the Korean language slot by code, and updates matching
    terms in memory through TermData.SetTranslation.

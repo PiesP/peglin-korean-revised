@@ -16,7 +16,7 @@ from typing import Any
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _PLUGIN_GUID = "piesp.peglin.koreanrevised"
-_PLUGIN_VERSION = "0.1.1"
+_PLUGIN_VERSION = "0.1.2"
 _PEGLIN_BEPINEX_PACK_VERSION = "5.4.2100"
 _BEPINEX_VERSION = "5.4.21"
 
@@ -93,8 +93,8 @@ def _candidate_readme(
         f"- Assembly-CSharp.dll SHA-256: {assembly_sha256}\n"
         f"- Plugin SHA-256: {plugin_hash}\n\n"
         "At startup the plugin verifies the installed resources.assets hash "
-        "and the Assembly-CSharp.dll hash in small chunks while the game starts. "
-        "It refuses to apply "
+        "and the Assembly-CSharp.dll hash synchronously before waiting for "
+        "localization data. It refuses to apply "
         "this candidate when either hash differs. It writes translations only "
         "to Peglin's in-memory I2 Korean language table and refreshes localized "
         "UI text; it does not write to the game installation. A later game "
