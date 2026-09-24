@@ -272,6 +272,83 @@ class TranslationDirectoryTests(unittest.TestCase):
             exit_code = main(["lint-overrides", "--translations", str(self.terms)])
         self.assertEqual(0, exit_code)
 
+    def test_source_bound_sprite_tag_repairs_are_narrowly_allowed(self) -> None:
+        cases = [
+            (
+                "Relics/lifesteal_peg_hit_desc",
+                "5035aeae4c2eb68887b2bdc7c243933b342b9a979c540dee2b2551ac440cc894",
+                '<style=heal2>Steal</style> <style=damage>1 health</style> '
+                'from the targeted enemy for every {[INFERNAL_PEGS]} '
+                '<sprite name="PEG> <style=activate>Activated</style>.',
+                '<style=heal2>흡수</style> <style=damage>체력 1</style> '
+                'from the targeted enemy for every {[INFERNAL_PEGS]} '
+                '<sprite name="PEG"> <style=activate>활성화</style>.',
+            ),
+            (
+                "Relics/mental_mantle_desc",
+                "b20efa66db9d16dc666ea54a606f383891a4cce05ec0897e0a93caa40c5c2a57",
+                'Immediately deal <style=damage>1 damage</style> to the targeted '
+                'enemy for every {[DAMAGE_ON_PEG_COUNT]} <sprite name="PEG> '
+                '<style=activate>Activated</style>.',
+                'Immediately deal <style=damage>1 damage</style> to the targeted '
+                'enemy for every {[DAMAGE_ON_PEG_COUNT]} <sprite name="PEG"> '
+                '<style=activate>활성화</style>.',
+            ),
+        ]
+        rows = []
+        lock_terms = {}
+        for term, fingerprint, source, translation in cases:
+            rows.append(
+                {
+                    "Term": term,
+                    "Translation": translation,
+                    "Status": "draft",
+                    "ReviewedBuildId": "",
+                    "Comment": "",
+                }
+            )
+            lock_terms[term] = {
+                "category": "Relics",
+                "file": "relics.csv",
+                "sourceFingerprint": fingerprint,
+                "protectedTokens": protected_tokens(source),
+            }
+        self._write_csv("relics.csv", rows)
+        lock = {"steamBuildId": "22988052", "terms": lock_terms}
+
+        summary, issues = validate_locked_translations(self.terms, lock)
+        self.assertEqual(0, summary["errors"])
+        self.assertEqual(
+            {"Relics/lifesteal_peg_hit_desc", "Relics/mental_mantle_desc"},
+            {issue.term for issue in issues if issue.code == "MALFORMED_LOCKED_SPRITE_TAG"},
+        )
+        self.assertNotIn("PROTECTED_TOKEN_MISMATCH", {issue.code for issue in issues})
+
+        invalid_locks = [
+            (copy.deepcopy(lock), {cases[0][0]}),
+            (
+                copy.deepcopy(lock),
+                {cases[0][0], cases[1][0]},
+            ),
+        ]
+        invalid_locks[0][0]["terms"][cases[0][0]]["sourceFingerprint"] = "f" * 64
+        invalid_locks[1][0]["steamBuildId"] = "22988053"
+        for invalid_lock, expected_terms in invalid_locks:
+            with self.subTest(
+                build_id=invalid_lock["steamBuildId"],
+                first_fingerprint=invalid_lock["terms"][cases[0][0]]["sourceFingerprint"],
+            ):
+                summary, issues = validate_locked_translations(self.terms, invalid_lock)
+                self.assertEqual(len(expected_terms), summary["errors"])
+                self.assertEqual(
+                    expected_terms,
+                    {
+                        issue.term
+                        for issue in issues
+                        if issue.code == "PROTECTED_TOKEN_MISMATCH"
+                    },
+                )
+
     def test_glossary_does_not_split_hyphenated_game_names(self) -> None:
         terms_path = self.root / "source.csv"
         source_rows = [

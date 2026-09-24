@@ -46,6 +46,23 @@ _MALFORMED_SPRITE_NAME_TOKEN = re.compile(
     r'<sprite\b[^>]*\bname="[^"]*>', re.IGNORECASE
 )
 
+# The locked English source has these two malformed PEG sprite tags. Permit
+# only the matching Korean repair for this exact source build and fingerprint.
+_LOCKED_SPRITE_TAG_REPAIRS = {
+    "Relics/lifesteal_peg_hit_desc": {
+        "steamBuildId": "22988052",
+        "sourceFingerprint": "5035aeae4c2eb68887b2bdc7c243933b342b9a979c540dee2b2551ac440cc894",
+        "sourceToken": '<sprite name="PEG>',
+        "translationToken": '<sprite name="PEG">',
+    },
+    "Relics/mental_mantle_desc": {
+        "steamBuildId": "22988052",
+        "sourceFingerprint": "b20efa66db9d16dc666ea54a606f383891a4cce05ec0897e0a93caa40c5c2a57",
+        "sourceToken": '<sprite name="PEG>',
+        "translationToken": '<sprite name="PEG">',
+    },
+}
+
 # Keep this list explicit. Similar-looking *_name terms do not imply that two
 # translated names refer to the same in-game entity.
 _CANONICAL_NAME_EXPECTATIONS = {
@@ -489,17 +506,32 @@ def validate_locked_translations(
                     term,
                 )
             )
-        elif Counter(expected_tokens) != Counter(protected_tokens(translation)):
-            issues.append(
-                Issue(
-                    "error",
-                    "PROTECTED_TOKEN_MISMATCH",
-                    "Translation protected tokens differ: "
-                    f"source={expected_tokens!r}, "
-                    f"translation={protected_tokens(translation)!r}.",
-                    term,
+        else:
+            expected_token_counts = Counter(expected_tokens)
+            actual_token_counts = Counter(protected_tokens(translation))
+            repair = _LOCKED_SPRITE_TAG_REPAIRS.get(term)
+            if (
+                repair is not None
+                and source_lock.get("steamBuildId") == repair["steamBuildId"]
+                and fingerprint == repair["sourceFingerprint"]
+                and expected_token_counts[repair["sourceToken"]] == 1
+            ):
+                expected_token_counts[repair["sourceToken"]] -= 1
+                if not expected_token_counts[repair["sourceToken"]]:
+                    del expected_token_counts[repair["sourceToken"]]
+                expected_token_counts[repair["translationToken"]] += 1
+
+            if expected_token_counts != actual_token_counts:
+                issues.append(
+                    Issue(
+                        "error",
+                        "PROTECTED_TOKEN_MISMATCH",
+                        "Translation protected tokens differ: "
+                        f"source={expected_tokens!r}, "
+                        f"translation={protected_tokens(translation)!r}.",
+                        term,
+                    )
                 )
-            )
         if translation and not _markup_is_balanced(translation):
             issues.append(
                 Issue(
@@ -568,8 +600,8 @@ def validate_locked_translations(
                         "warning",
                         "MALFORMED_LOCKED_SPRITE_TAG",
                         f"Source lock preserves malformed sprite token "
-                        f"{token!r}; review the source and rendering before "
-                        "changing the translation.",
+                        f"{token!r}; verify the corresponding translation "
+                        "renders correctly in-game before approval.",
                         term,
                     )
                 )

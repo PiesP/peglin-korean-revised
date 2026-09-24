@@ -7,7 +7,7 @@ Enemies/assassin_desc,"대부분의 기사들은 대열을 맞춰 움직이지�
 Enemies/assassin_dev,암살자 기사가 근접 거리로 곧바로 점프해 후퇴하는 능력은 나중에 두더지 보스인 아보가드로가 사용한 '텔레포트' 메커니즘의 원조입니다.,draft,,
 Enemies/assassin_lore,"암살 기사단 외부에서는 이들의 순간이동 능력이 어떻게 작동하는지 아무도 모르지만, 몇몇 용감한 자들이 이들의 무리에 잠입하여 비밀 기술을 배우기 위해 노력하고 있습니다.",draft,,
 Enemies/assassin_name,암살자 기사,draft,,
-Enemies/ballista_desc,라디아 전역에서 가장 치명적인 무기입니다! 이 무기를 한 발만 쏴도 수많은 생물을 쓰러뜨리고 적의 머리를 날려버릴 수 있습니다!,draft,,
+Enemies/ballista_desc,라디아 전역에서 가장 치명적인 무기입니다! 한 발만 쏘아도 수많은 생물을 쓸어버리고 표적을 어지럽게 만들 수 있습니다!,draft,,Avoids implying that the target is decapitated while preserving the disorientation effect.
 Enemies/ballista_dev,"발리스타 민병대는 사실 여러 개별 적을 하나의 보스로 구성한 것입니다. 체력을 잃으면 기사들이 서서히 사라지게 하는 것도 고려했지만, 너무 귀여워서 없앨 수 없었습니다.",draft,,
 Enemies/ballista_lore,"원래 휴대용 용 사냥 무기로 개발되었지만, 발리스타는 지하로 옮기기에 너무 거대했습니다. 결국 광산 입구에 자리 잡고 언제든 공격에 대비합니다.",draft,,
 Enemies/ballista_name,발리스타 민병대,draft,,
@@ -88,7 +88,7 @@ Enemies/knight_dev,사실 이 적과 키 기사는 페글린 이전의 게임 �
 Enemies/knight_lore,이 작은 전사들은 아직 광산 수정의 변형 효과에 굴복하지 않았습니다. 이들은 숲의 생명체와 광산에 숨어 있는 공포를 물리치느라 힘들게 살아가고 있습니다.,draft,,
 Enemies/knight_miniboss_desc,"이 기사만으로도 위협적이지만, 직접 선발한 부대까지 이끌고 나타납니다. 너무 많은 공격을 받지 않도록 공격 대상을 신중히 고르세요.",draft,,
 Enemies/knight_miniboss_dev,이 미니보스는 페글린에서 가장 오래된 캐릭터 아트를 자랑합니다. 2019년 게임 잼을 위해 개발된 오리지널 페글린 프로토타입인 고블린 드롭의 최종 보스로 등장한 이후 지금까지 그 아트가 그대로 유지되고 있습니다.,draft,,
-Enemies/knight_miniboss_lore,기사의 변신 관련 수정의 효과를 가장 먼저 실험한 이 다재다능한 전사들은 지능을 유지하며 효과적인 대대장이 되었습니다.,draft,,
+Enemies/knight_miniboss_lore,수정이 기사들의 변신에 미치는 영향을 알아보던 초기 실험의 대상 중 하나인 다재다능한 전사들입니다. 이들은 지능을 유지해 유능한 대대장이 되었습니다.,draft,,Clarifies that these warriors were subjects of early experiments.
 Enemies/knight_miniboss_name,키 기사,draft,,
 Enemies/knight_name,기사 기사,draft,,
 Enemies/leshy_boss_desc,아무도 기억할 수 없을 만큼 오랫동안 숲을 지켜 온 고대 존재입니다. 숲을 안전하게 지키기 위해 침입자를 가시덤불에 가두고 덩굴로 천천히 짓눌러 버립니다.,draft,,
@@ -152,7 +152,7 @@ Enemies/resistance_knight_dev,이 적들은 개발하기 가장 어렵고 복잡
 Enemies/resistance_knight_lore,기사들은 저항 기사에게 무기를 언제 바꿔야 하는지 수없이 알려 주려 했습니다. 하지만 수정의 영향을 받은 뒤로는 예전처럼 잘 기억하지 못합니다.,draft,,
 Enemies/resistance_knight_name,저항 기사,draft,,
 Enemies/ruins_boss_desc,"유적을 어떤 순서로 노릴지를 두고 의견이 분분하지만, 거의 모든 모험가는 화력을 한곳에 집중해 유적을 하나씩 빠르게 처치하는 편이 낫다고 말합니다.",draft,,
-Enemies/ruins_boss_dev,"이 보스의 원래 이름은 단순히 '애니메이션 루인'이었지만, 'QR코드 보스'라는 구어체 별명을 보고 이니셜을 따서 이름을 바꾸게 되었습니다.",draft,,
+Enemies/ruins_boss_dev,"이 보스의 원래 이름은 ‘Animated Ruins’였지만, ‘QR 코드 보스’라는 별명에서 착안해 영문 이름의 머리글자가 QR을 이루도록 이름을 바꾸었습니다.",draft,,Clarifies that the renamed English title uses the initials QR.
 Enemies/ruins_boss_lore,"이 이상한 장치는 누군가 또는 무언가가 개발한 것처럼 보이지만, 실제로는 라디아 자체의 자연스러운 형성 및 방어 메커니즘입니다.",draft,,
 Enemies/ruins_boss_name,비밀구슬 유적,draft,,
 Enemies/shade_miniboss_desc,"트라이빔 쉐이드는 엘드리치 에너지가 형체를 이룬 존재입니다. 일반 생명체처럼 피해를 입지 않으므로, 에너지를 조금씩 흩뜨려 약화시켜야 합니다.",draft,,

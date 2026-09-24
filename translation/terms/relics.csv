@@ -35,7 +35,7 @@ Relics/aim_limiter_desc2,"모든 구슬이 조준한 방향과 반대 방향으�
 Relics/aim_limiter_desc3,"모든 구슬이 페그보드에 2개의 복제 구슬을 추가로 발사하지만, 모든 구슬의 대미지는 <style=dmg_negative>0.5배로 감소하며 (소수점 아래 버림)</style>, 조준은 네 방향으로만 가능합니다.",draft,,
 Relics/aim_limiter_name,속박의 사슬,draft,,
 Relics/all_attacks_pierce_desc,투사체 공격이 적을 추가로 관통합니다.,draft,,
-Relics/all_attacks_pierce_desc2,"2, 3, 5…번째 샷은 적을 하나 더 관통합니다.",draft,,
+Relics/all_attacks_pierce_desc2,"발사 순서가 소수(2, 3, 5, 7, 11…)일 때 적 하나를 추가로 관통합니다.",draft,,Restores the explicit prime-numbered shot rule; examples supplement it.
 Relics/all_attacks_pierce_name,서리의 프라임 막대,draft,,
 Relics/all_bombs_rigged_desc2,"모든 <sprite name=""BOMB_REGULAR"">이 <sprite name=""RIGGED_BOMB"">으로 바뀌고 <style=dmg_bonus>적에게 {[SAPPER_SACK_MULT]}배의 대미지를 줍니다</style>.",draft,,
 Relics/all_bombs_rigged_name,공병의 가방,draft,,
@@ -103,7 +103,7 @@ Relics/bombs_one_hit_desc,"<sprite name=""BOMB"">이 한 번의 명중으로 폭
 Relics/bombs_one_hit_name,짧은 도화선,draft,,
 Relics/bombs_respawn_desc,"사용한 <sprite name=""BOMB"">이 새로고침으로 다시 생성될 수 있지만, <sprite name=""BOMB"">은 <style=dmg_negative>{[BOMB_REFRESH_DMG]}의 대미지를 줍니다</style>.",draft,,
 Relics/bombs_respawn_desc2,"사용한 <sprite name=""BOMB"">이 새로고침으로 다시 생성될 수 있습니다.",draft,,
-Relics/bombs_respawn_desc3,"이전에 던졌던 <sprite name=""BOMB"">이 이제 <sprite name=""BOMB_REGULAR"">로 새로 생성됩니다.",draft,,
+Relics/bombs_respawn_desc3,"이미 던진 <sprite name=""BOMB"">은 새로고침 시 <sprite name=""BOMB_REGULAR"">로 복원됩니다.",draft,,Clarifies that previously thrown bombs return when the board refreshes.
 Relics/bombs_respawn_name,폭탄 재생기,draft,,
 Relics/bottom_bouncers_count_desc,페그보드 하단의 바운서와의 충돌이 대미지에 기여합니다.,draft,,
 Relics/bottom_bouncers_count_name,밋밋한 반지,draft,,
@@ -269,7 +269,7 @@ Relics/inflight_damage_name,회중시계,draft,,
 Relics/large_orbs_dmg_target_desc,"표준 구슬 크기보다 큰 구슬은 <sprite name=""PEG"">에 <style=hit>명중</style>할 때마다 지정된 적에게 <style=damage>{[LARGE_ORB_DMG]}의 대미지</style>를 줍니다.",draft,,
 Relics/large_orbs_dmg_target_desc2,"표준 구슬 크기보다 큰 구슬은 <sprite name=""PEG"">에 <style=hit>명중</style>할 때마다 지정된 적에게 <style=damage>보유한 큰 구슬의 개수와 동일한 대미지</style>를 줍니다.",draft,,
 Relics/large_orbs_dmg_target_name,큰 물고기,draft,,
-Relics/lifesteal_peg_hit_desc,"<style=activate>활성화</style>된 <sprite name=""PEG> {[INFERNAL_PEGS]}개마다 지정된 적에게서 <style=damage>체력 1</style>을 <style=heal2>흡수합니다</style>.",draft,,
+Relics/lifesteal_peg_hit_desc,"<style=activate>활성화</style>된 <sprite name=""PEG""> {[INFERNAL_PEGS]}개마다 지정된 적에게서 <style=damage>체력 1</style>을 <style=heal2>흡수합니다</style>.",draft,,Corrects the missing quote in this Korean sprite tag; the locked English source tag is malformed.
 Relics/lifesteal_peg_hit_name,명계의 주괴,draft,,
 Relics/lose_ballwark_gain_ballance_desc,<style=shield>마지막 보호막</style>을 잃으면 <style=balance>1 균형</style>을 얻습니다.,draft,,
 Relics/lose_ballwark_gain_ballance_name,마음의 평화,draft,,
@@ -292,7 +292,7 @@ Relics/max_health_small_desc,최대 체력을 <style=heal>{[MAX_HEALTH_SMALL_AMO
 Relics/max_health_small_name,하루 사과 한 알,draft,,
 Relics/max_hp_on_orb_add_desc,덱에 구슬이 추가될 때마다 <style=heal>최대 체력을 {[MAX_HP_ON_ORB_ADD_AMOUNT]}만큼 얻습니다</style>.,draft,,
 Relics/max_hp_on_orb_add_name,개구리 부적,draft,,
-Relics/mental_mantle_desc,"<sprite name=""PEG>를 {[DAMAGE_ON_PEG_COUNT]}개 <style=activate>활성화</style>할 때마다 지정된 적에게 즉시 <style=damage>1의 대미지</style>를 줍니다.",draft,,
+Relics/mental_mantle_desc,"<sprite name=""PEG"">를 {[DAMAGE_ON_PEG_COUNT]}개 <style=activate>활성화</style>할 때마다 지정된 적에게 즉시 <style=damage>1의 대미지</style>를 줍니다.",draft,,Corrects the missing quote in this Korean sprite tag; the locked English source tag is malformed.
 Relics/mental_mantle_name,정신의 망토,draft,,
 Relics/minimum_guarantee_desc,"구슬은 {[SAFETY_PEGS]}개의 <sprite name=""PEG"">를 맞혔을 때와 같은 대미지를 지닌 채 발사됩니다.",draft,,
 Relics/minimum_guarantee_name,안전망,draft,,
@@ -408,10 +408,10 @@ Relics/spinesse_when_dodging_name,수상한 단검,draft,,
 Relics/splash_effect_on_targeted_attacks_desc,지정 공격이 주변의 적들에게도 명중합니다.,draft,,
 Relics/splash_effect_on_targeted_attacks_name,외계의 바위,draft,,
 Relics/squirrel_ball_desc,"<sprite name=""PEG"">에 {[SQUIRREL_NUM]}번 <style=hit>명중</style>할 때마다 페그보드에 다람쥐공을 소환합니다.",draft,,
-Relics/squirrel_ball_desc2,"<sprite name=""PEG"">에 {[PEGS_PER_SQUIRREL]}번 <style=hit>명중</style>할 때마다 페그보드에 다람쥐공을 소환합니다. 소환된 다람쥐공은 {[SQUIRREL_NUM]}번 사용하면 파괴됩니다.",draft,,
+Relics/squirrel_ball_desc2,"<sprite name=""PEG"">에 {[PEGS_PER_SQUIRREL]}번 <style=hit>명중</style>할 때마다 페그보드에 다람쥐공을 소환합니다. 소환된 다람쥐공은 {[SQUIRREL_NUM]}번 사용하면 파괴됩니다.",draft,,Verify which object the use counter destroys in Steam build 22988052 before changing the subject or approving this row.
 Relics/squirrel_ball_name,스피어리디의 운명,draft,,
 Relics/start_with_ballwark_desc,매 전투를 <style=shield>보호막 {[BALLWARK_START]}</style>이 부여된 상태로 시작합니다.,draft,,
-Relics/start_with_ballwark_for_orb_levels_desc,각 전투는 덱에 있는 구슬의 수와 2배(구슬의 최대 기본 공격력) 중 더 높은 수만큼 <style=shield>보호막</style>으로 시작합니다.,draft,,
+Relics/start_with_ballwark_for_orb_levels_desc,각 전투는 덱에 있는 구슬의 수와 2배(구슬의 최대 기본 공격력) 중 더 높은 수만큼 <style=shield>보호막</style>으로 시작합니다.,draft,,Confirm how the largest base-damage value is selected and shown in Steam build 22988052 before approving this wording.
 Relics/start_with_ballwark_for_orb_levels_name,발라드로이,draft,,
 Relics/start_with_ballwark_name,발라드로이,draft,,
 Relics/strength_on_refresh_desc,페그보드가 새로고침될 때마다 <style=strength>1 근력</style>을 얻습니다.,draft,,
