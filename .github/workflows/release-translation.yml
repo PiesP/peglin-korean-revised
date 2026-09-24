@@ -1,0 +1,252 @@
+name: Release Korean translation patch
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "translation/terms/**"
+      - "translation/source-lock.json"
+      - "translation/glossary.csv"
+      - "runtime/PeglinKoreanRevised.dll"
+      - "plugin/**"
+      - "src/peglin_l10n/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/release-translation.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: translation-release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  merged-pull-request:
+    name: Confirm merged pull request
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.verify.outputs.eligible }}
+    steps:
+      - name: Confirm this commit is a merged pull request to master
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$SOURCE_REF" != "refs/heads/master" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Release skipped: source is not master." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          response="$RUNNER_TEMP/pull-requests.json"
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${SOURCE_SHA}/pulls" > "$response"
+          python3 - "$response" "$SOURCE_SHA" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          response_path, source_sha, output_path, summary_path = map(Path, sys.argv[1:])
+          pull_requests = json.loads(response_path.read_text(encoding="utf-8"))
+          if not isinstance(pull_requests, list):
+              raise SystemExit("GitHub returned an invalid pull request list.")
+
+          matches = [
+              pull_request
+              for pull_request in pull_requests
+              if isinstance(pull_request, dict)
+              and pull_request.get("merged_at")
+              and isinstance(pull_request.get("base"), dict)
+              and pull_request["base"].get("ref") == "master"
+              and pull_request.get("merge_commit_sha") == str(source_sha)
+          ]
+          eligible = bool(matches)
+          with output_path.open("a", encoding="utf-8") as output:
+              output.write(f"eligible={'true' if eligible else 'false'}\n")
+          with summary_path.open("a", encoding="utf-8") as summary:
+              if eligible:
+                  numbers = ", ".join(str(item["number"]) for item in matches)
+                  summary.write(f"Release source verified as merged PR #{numbers}.\n")
+              else:
+                  summary.write("Release skipped: this master commit is not a merged PR commit.\n")
+          PY
+
+  build:
+    name: Build patch from reviewed source
+    needs: merged-pull-request
+    if: needs.merged-pull-request.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95e4a91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          version: "0.9.7"
+          enable-cache: false
+      - name: Install locked dependencies
+        run: uv sync --locked --python 3.11
+      - name: Validate contributor data
+        run: uv run --locked peglin-l10n lint-overrides
+      - name: Build release files
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          OUTPUT_DIR: ${{ runner.temp }}/peglin-release
+        run: >-
+          uv run --locked peglin-l10n build-release-candidate
+          --source-revision "$SOURCE_SHA"
+          --output-dir "$OUTPUT_DIR"
+      - name: Upload release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: peglin-translation-release-${{ github.sha }}
+          path: ${{ runner.temp }}/peglin-release/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs: [merged-pull-request, build]
+    if: needs.merged-pull-request.outputs.eligible == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download files built by this workflow
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: peglin-translation-release-${{ github.sha }}
+          path: ${{ runner.temp }}/peglin-release
+      - name: Verify provenance and checksums
+        id: verify
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_DIR: ${{ runner.temp }}/peglin-release
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import zipfile
+          from pathlib import Path
+
+          root = Path(os.environ["RELEASE_DIR"])
+          source_sha = os.environ["SOURCE_SHA"]
+          if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise SystemExit("The source commit is not a full Git SHA.")
+
+          required = {"release-manifest.json", "release-notes.md", "SHA256SUMS.txt"}
+          if not root.is_dir() or any(not (root / name).is_file() for name in required):
+              raise SystemExit("The release artifact is missing required files.")
+
+          manifest = json.loads((root / "release-manifest.json").read_text(encoding="utf-8"))
+          if not isinstance(manifest, dict):
+              raise SystemExit("The release manifest root is invalid.")
+          if manifest.get("kind") != "peglin-korean-release-provenance":
+              raise SystemExit("The release manifest kind is invalid.")
+          if manifest.get("sourceRevision") != source_sha:
+              raise SystemExit("The release manifest does not match the merged source commit.")
+          status = manifest.get("status")
+          if status not in {"draft", "approved"}:
+              raise SystemExit("The translation status is invalid.")
+
+          checksums_path = root / "SHA256SUMS.txt"
+          expected = set()
+          for line in checksums_path.read_text(encoding="utf-8").splitlines():
+              match = re.fullmatch(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+)", line)
+              if not match or match.group(2) in expected:
+                  raise SystemExit("The checksum file contains an invalid or duplicate entry.")
+              expected.add(match.group(2))
+          if not {"release-manifest.json", "release-notes.md"} <= expected:
+              raise SystemExit("The checksum file does not cover the manifest and notes.")
+
+          items = list(root.iterdir())
+          if any(not path.is_file() or path.is_symlink() for path in items):
+              raise SystemExit("The release artifact contains an unexpected directory or symlink.")
+          actual = {path.name for path in items if path.name != checksums_path.name}
+          if actual != expected:
+              raise SystemExit("The release files do not match the checksum inventory.")
+          checksum_lines = checksums_path.read_text(encoding="utf-8").splitlines()
+          for name in expected:
+              contents = (root / name).read_bytes()
+              line = next(line for line in checksum_lines if line.endswith("  " + name))
+              if hashlib.sha256(contents).hexdigest() != line[:64]:
+                  raise SystemExit(f"Checksum mismatch: {name}")
+
+          if not any(name.endswith(".json") and name != "release-manifest.json" for name in expected):
+              raise SystemExit("The JSON translation overlay is missing.")
+          archives = [name for name in expected if name.endswith(".zip")]
+          if len(archives) != 1:
+              raise SystemExit("The installable patch archive is missing.")
+
+          archive_path = root / archives[0]
+          expected_members = {
+              "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll",
+              "BepInEx/plugins/PeglinKoreanRevised/overlay.json",
+              "BepInEx/plugins/PeglinKoreanRevised/manifest.json",
+              "README.md",
+          }
+          with zipfile.ZipFile(archive_path) as archive:
+              members = archive.namelist()
+              if len(members) != len(expected_members) or set(members) != expected_members:
+                  raise SystemExit("The install archive contains unexpected or duplicate members.")
+              if archive.testzip() is not None:
+                  raise SystemExit("The install archive failed its CRC check.")
+              package_manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+              overlay = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/overlay.json"))
+
+          if package_manifest.get("kind") != "peglin-korean-client-candidate":
+              raise SystemExit("The install archive manifest kind is invalid.")
+          package_files = package_manifest.get("files")
+          expected_hashes = {
+              "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll",
+              "BepInEx/plugins/PeglinKoreanRevised/overlay.json",
+          }
+          if not isinstance(package_files, dict) or set(package_files) != expected_hashes:
+              raise SystemExit("The install archive manifest file inventory is invalid.")
+          with zipfile.ZipFile(archive_path) as archive:
+              for name, digest in package_files.items():
+                  if not isinstance(digest, str) or hashlib.sha256(archive.read(name)).hexdigest() != digest:
+                      raise SystemExit(f"Install archive manifest hash mismatch: {name}")
+          if overlay.get("status") != status or package_manifest.get("status") != status:
+              raise SystemExit("Translation status disagrees across release files.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"prerelease={'true' if status == 'draft' else 'false'}\n")
+              output.write(f"tag=peglin-ko-{source_sha[:12]}\n")
+          PY
+      - name: Create release for the merged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_DIR: ${{ runner.temp }}/peglin-release
+          RELEASE_TAG: ${{ steps.verify.outputs.tag }}
+          PRERELEASE: ${{ steps.verify.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          args=(--target "$SOURCE_SHA" --title "Peglin Korean Revised ${SOURCE_SHA:0:12}" --notes-file "$RELEASE_DIR/release-notes.md")
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" \
+            "$RELEASE_DIR"/*.json \
+            "$RELEASE_DIR"/*.zip \
+            "$RELEASE_DIR/release-notes.md" \
+            "$RELEASE_DIR/release-manifest.json" \
+            "$RELEASE_DIR/SHA256SUMS.txt"
