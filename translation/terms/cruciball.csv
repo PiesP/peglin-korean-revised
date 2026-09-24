@@ -7,7 +7,7 @@ Cruciball/fewer_refresh_pegs,"페그보드의 <sprite name=""REFRESH_PEG"">가 1
 Cruciball/fewer_special_pegs,"페그보드의 <sprite name=""CRIT_PEG"">와 <sprite name=""REFRESH_PEG"">가 줄어듭니다.",draft,,
 Cruciball/horriball_start,매 회차를 <style=dmg_negative>끔찍구</style> 1개와 함께 시작합니다.,draft,,
 Cruciball/increased_enemy_reload_turns,재장전할 때 적이 한 턴을 더 가집니다.,draft,,
-Cruciball/increased_misnavigation_damage,길을 잘못 들었을 때 받는 대미지가 <style=damage>{[CRUCIBALL_MISNAV_DMG]}</style>로 증가합니다.,draft,,
+Cruciball/increased_misnavigation_damage,이동 실패로 받는 대미지가 <style=damage>{[CRUCIBALL_MISNAV_DMG]}</style>로 증가합니다.,draft,,Reuses the established Korean phrase 이동 실패 from related map-movement descriptions.
 Cruciball/increased_rigged_bomb_damage,"<sprite name=""RIGGED_BOMB"">의 <style=damage>자해 대미지가 {[RIGGED_DMG_SELF_CRUCIBALL]}로 증가합니다</style>.",draft,,
 Cruciball/less_battle_gold_no_starting_gold,여러 상황에서 획득할 수 있는 골드가 감소합니다.,draft,,
 Cruciball/less_boss_healing,보스를 처치해도 최대 체력의 {[CRUCIBALL_BOSS_HEAL]}%만 회복합니다.,draft,,

@@ -2,7 +2,7 @@ Term,Translation,Status,ReviewedBuildId,Comment
 Classes/character_feat_balladin,인내의 위업:,draft,,
 Classes/character_feat_description_balladin,<style=ballwark>도자기 가게의 보호막</style>을 달성하면 이 직업이 즉시 해금됩니다: <style=ballwark>보호막을 100 이상</style> 남긴 채 전투를 끝내세요.,draft,,
 Classes/character_feat_description_roundrel,<style=poison>중독 IV</style>를 달성하면 이 직업이 즉시 해금됩니다: 한 적에게 <style=poison>감염 40 이상</style>을 유지하세요.,draft,,
-Classes/character_feat_description_spinventor,<style=heal>슬라임 또 슬라임</style>을 달성하면 이 직업이 즉시 해금됩니다: 한 번의 발사로 <style=heal>슬라임이 묻은 페그 7개</style>에 연속으로 튕기세요.,draft,,
+Classes/character_feat_description_spinventor,<style=heal>슬라임 또 슬라임</style>을 달성하면 이 직업이 즉시 해금됩니다: 한 번의 발사로 <style=heal>슬라임이 묻은 페그 7개</style>에 연속으로 튕기세요.,draft,,Verify the seven-peg achievement description and its relationship to the class-unlock term in Steam build 22988052 before approving.
 Classes/character_feat_roundrel,기만의 위업:,draft,,
 Classes/character_feat_spinventor,재치의 위업:,draft,,
 Classes/character_xp_requirements_balladin,모든 회차에 걸쳐 <style=ballwark>보호막을 총 {[BALLADIN_XP_TOTAL]}</style> 획득하면 이 직업이 해금됩니다.,draft,,
@@ -15,7 +15,7 @@ Classes/rogue_class_title,구적,draft,,
 Classes/rogue_class_unlock_method,한 적에게 <style=poison>감염 40 이상</style>을 부여한 뒤 전투에서 승리하면 이 직업이 해금됩니다!,draft,,
 Classes/spinventor_class_desc,구슬발명가는 명석한 두뇌로 페그와 구슬의 속성을 바꿉니다. 구슬발명가의 구슬과 유물은 기름칠 잘 된 기계처럼 서로 맞물려 적을 쓰러뜨립니다.,draft,,
 Classes/spinventor_class_title,구슬발명가,draft,,
-Classes/spinventor_class_unlock_method,한 번의 발사로 슬라임이 묻은 페그 6개 이상에 구슬을 연속으로 튕기면 이 직업이 해금됩니다!,draft,,
+Classes/spinventor_class_unlock_method,한 번의 발사로 슬라임이 묻은 페그 6개 이상에 구슬을 연속으로 튕기면 이 직업이 해금됩니다!,draft,,Verify which class-unlock text is active in Steam build 22988052 and confirm the six-peg trigger before approving.
 Classes/starting_relic_label,시작 유물:,draft,,
 Classes/warrior_class_desc,공기사는 굳건한 방어와 강력한 공격에 특화된 구슬과 유물로 적을 제압하는 정의로운 전사입니다.,draft,,
 Classes/warrior_class_title,공기사,draft,,
