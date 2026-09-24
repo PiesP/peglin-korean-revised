@@ -149,6 +149,11 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help="Git revision recorded in release provenance",
     )
+    release.add_argument(
+        "--release-tag",
+        required=True,
+        help="administrator-selected version tag recorded in release provenance",
+    )
     release.add_argument("--output-dir", required=True, type=Path)
     release.add_argument(
         "--translations",
@@ -368,6 +373,7 @@ def _run_build_release_candidate(args: argparse.Namespace) -> int:
             PROJECT_ROOT,
             args.source_revision,
             args.output_dir,
+            release_tag=args.release_tag,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Release candidate generation stopped safely: {exc}", file=sys.stderr)

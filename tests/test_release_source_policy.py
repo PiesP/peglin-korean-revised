@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 import tempfile
 import unittest
@@ -27,6 +26,8 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.source_sha = "a" * 40
+        self.release_tag = "peglin-ko-v1.0.0-rc.1"
+        self.tag_object_sha = "f" * 40
         self.issue_number = 42
         self.rights_confirmation = (
             "- [x] " + release_source.RIGHTS_CONFIRMATION
@@ -35,37 +36,33 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def _issue_event(self, *, commits: list[dict[str, str]] | None = None) -> dict:
-        return {
-            "before": "b" * 40,
-            "after": self.source_sha,
-            "commits": commits
-            if commits is not None
-            else [{"id": self.source_sha}],
-            "head_commit": {
-                "id": self.source_sha,
-                "message": f"Update Korean translation\n\nIssue: #{self.issue_number}",
-            },
-        }
-
     def _run(
         self,
         *,
         event_name: str = "push",
         actor: str = "PiesP",
-        triggering_actor: str = "PiesP",
-        event: dict | None = None,
+        source_ref: str | None = None,
+        release_tag: str | None = None,
         responses: dict[object, object] | None = None,
     ) -> bool:
-        event_path = self.root / "event.json"
-        event_path.write_text(
-            json.dumps(event if event is not None else self._issue_event()),
-            encoding="utf-8",
-        )
         output_path = self.root / "output.txt"
         summary_path = self.root / "summary.md"
-        response_map = dict(responses or {})
-        response_map.setdefault(f"commits/{self.source_sha}/pulls", [])
+        tag = release_tag or self.release_tag
+        response_map: dict[object, object] = {
+            f"git/ref/tags/{tag}": {
+                "ref": f"refs/tags/{tag}",
+                "object": {"sha": self.tag_object_sha, "type": "tag"},
+            },
+            f"git/tags/{self.tag_object_sha}": {
+                "tag": tag,
+                "object": {"sha": self.source_sha, "type": "commit"},
+            },
+            "git/ref/heads/master": {
+                "object": {"sha": self.source_sha, "type": "commit"}
+            },
+            f"commits/{self.source_sha}/pulls": [],
+        }
+        response_map.update(responses or {})
 
         def api_response(
             repository: str, endpoint: str, *, paginate: bool = False
@@ -76,11 +73,10 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
 
         environment = {
             "SOURCE_SHA": self.source_sha,
-            "SOURCE_REF": "refs/heads/master",
+            "SOURCE_REF": source_ref or f"refs/tags/{tag}",
             "EVENT_NAME": event_name,
             "EVENT_ACTOR": actor,
-            "TRIGGERING_ACTOR": triggering_actor,
-            "EVENT_PATH": str(event_path),
+            "RELEASE_TAG": tag,
             "GITHUB_REPOSITORY": "PiesP/peglin-korean-revised",
             "GITHUB_OUTPUT": str(output_path),
             "GITHUB_STEP_SUMMARY": str(summary_path),
@@ -92,9 +88,17 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
         return "eligible=true" in output_path.read_text(encoding="utf-8")
 
     def _valid_issue_responses(self) -> dict[object, object]:
+        check_endpoint = (
+            f"commits/{self.source_sha}/check-runs?check_name=validate"
+            "&filter=latest&per_page=100"
+        )
         return {
-            f"commits/{self.source_sha}/pulls": [],
             f"commits/{self.source_sha}": {
+                "sha": self.source_sha,
+                "commit": {
+                    "message": f"Update Korean translation\n\nIssue: #{self.issue_number}"
+                },
+                "parents": [{"sha": "b" * 40}],
                 "files": [
                     {
                         "filename": "translation/terms/menu.csv",
@@ -102,6 +106,7 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
                     }
                 ]
             },
+            check_endpoint: self._successful_validate_check(head_sha=self.source_sha),
             f"issues/{self.issue_number}": {
                 "body": self.rights_confirmation
             },
@@ -150,36 +155,42 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
             f"commits/{head_sha}/check-runs?check_name=validate"
             "&filter=latest&per_page=100"
         )
+        source_check_runs_endpoint = (
+            f"commits/{self.source_sha}/check-runs?check_name=validate"
+            "&filter=latest&per_page=100"
+        )
         return {
             f"commits/{self.source_sha}/pulls": [{"number": 7}],
             "pulls/7": pull_request,
             check_runs_endpoint: self._successful_validate_check(head_sha=head_sha),
+            source_check_runs_endpoint: self._successful_validate_check(
+                head_sha=self.source_sha
+            ),
             ("pulls/7/reviews", True): [[]],
         }
 
-    def test_accepts_single_admin_commit_for_permission_confirmed_issue(self) -> None:
+    def test_accepts_permission_confirmed_issue_commit_under_admin_tag(self) -> None:
         self.assertTrue(self._run(responses=self._valid_issue_responses()))
 
-    def test_rejects_issue_push_with_multiple_commits(self) -> None:
-        commits = [
-            {"id": "c" * 40},
-            {"id": self.source_sha},
+    def test_rejects_issue_update_that_is_not_a_single_parent_commit(self) -> None:
+        responses = self._valid_issue_responses()
+        responses[f"commits/{self.source_sha}"]["parents"] = [
+            {"sha": "b" * 40},
+            {"sha": "c" * 40},
         ]
         self.assertFalse(
-            self._run(event=self._issue_event(commits=commits))
+            self._run(responses=responses)
         )
 
     def test_rejects_issue_commit_that_also_changes_non_translation_files(self) -> None:
         responses = self._valid_issue_responses()
-        responses[f"commits/{self.source_sha}"] = {
-            "files": [
-                {
-                    "filename": "translation/terms/menu.csv",
-                    "status": "modified",
-                },
-                {"filename": "plugin/Plugin.cs", "status": "modified"},
-            ]
-        }
+        responses[f"commits/{self.source_sha}"]["files"] = [
+            {
+                "filename": "translation/terms/menu.csv",
+                "status": "modified",
+            },
+            {"filename": "plugin/Plugin.cs", "status": "modified"},
+        ]
         self.assertFalse(self._run(responses=responses))
 
     def test_rejects_issue_without_permission_confirmation(self) -> None:
@@ -189,7 +200,7 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
         }
         self.assertFalse(self._run(responses=responses))
 
-    def test_rejects_admin_direct_push_when_commit_is_associated_with_a_pr(self) -> None:
+    def test_rejects_issue_commit_associated_with_an_unqualified_pr(self) -> None:
         responses = self._valid_issue_responses()
         responses[f"commits/{self.source_sha}/pulls"] = [
             {"number": 7}
@@ -237,6 +248,54 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
             self._run(responses=self._valid_pr_responses(pull_request))
         )
 
+    def test_rejects_non_admin_release_tag_actor(self) -> None:
+        self.assertFalse(self._run(actor="translator"))
+
+    def test_rejects_invalid_release_tag_or_ref(self) -> None:
+        for tag, ref in (
+            ("peglin-ko-1.0.0", "refs/tags/peglin-ko-1.0.0"),
+            ("peglin-ko-v1.0.0", "refs/tags/peglin-ko-v1.0.0-rc.1"),
+            ("peglin-ko-v01.0.0", "refs/tags/peglin-ko-v01.0.0"),
+        ):
+            with self.subTest(tag=tag, ref=ref):
+                self.assertFalse(self._run(release_tag=tag, source_ref=ref))
+
+    def test_rejects_lightweight_release_tag(self) -> None:
+        tag = self.release_tag
+        responses = {
+            f"git/ref/tags/{tag}": {
+                "ref": f"refs/tags/{tag}",
+                "object": {"sha": self.source_sha, "type": "commit"},
+            }
+        }
+        self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_release_tag_for_commit_other_than_current_master_tip(self) -> None:
+        responses = {
+            "git/ref/heads/master": {
+                "object": {"sha": "b" * 40, "type": "commit"}
+            }
+        }
+        self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_tag_target_that_differs_from_event_commit(self) -> None:
+        responses = {
+            f"git/tags/{self.tag_object_sha}": {
+                "tag": self.release_tag,
+                "object": {"sha": "b" * 40, "type": "commit"},
+            }
+        }
+        self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_issue_commit_without_successful_validate_check(self) -> None:
+        responses = self._valid_issue_responses()
+        endpoint = (
+            f"commits/{self.source_sha}/check-runs?check_name=validate"
+            "&filter=latest&per_page=100"
+        )
+        responses[endpoint] = {"total_count": 0, "check_runs": []}
+        self.assertFalse(self._run(responses=responses))
+
     def test_rejects_pr_whose_merge_commit_is_not_the_source(self) -> None:
         pull_request = self._pull_request()
         pull_request["merge_commit_sha"] = "d" * 40
@@ -282,6 +341,15 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
             responses[endpoint] = check_response
             with self.subTest(check_response=check_response):
                 self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_pr_without_validate_on_exact_merged_master_commit(self) -> None:
+        responses = self._valid_pr_responses(self._pull_request())
+        endpoint = (
+            f"commits/{self.source_sha}/check-runs?check_name=validate"
+            "&filter=latest&per_page=100"
+        )
+        responses[endpoint] = {"total_count": 0, "check_runs": []}
+        self.assertFalse(self._run(responses=responses))
 
     def test_rejects_malformed_check_run_response(self) -> None:
         responses = self._valid_pr_responses(self._pull_request())

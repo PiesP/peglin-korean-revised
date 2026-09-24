@@ -13,6 +13,7 @@ from typing import Any
 
 from .candidate import PLUGIN_VERSION, create_prebuilt_client_candidate
 from .patching import create_locked_overlay_patch
+from .release_tag import is_release_tag, validate_release_tag_status
 from .source_lock import (
     DEFAULT_PLUGIN_SOURCE_INPUTS,
     read_source_lock,
@@ -46,12 +47,14 @@ def _json_bytes(document: dict[str, Any]) -> bytes:
 
 
 def _release_notes(
+    release_tag: str,
     source_revision: str,
     source_lock: dict[str, Any],
     status: str,
 ) -> bytes:
     return (
-        "# Peglin Korean Revised 패치 후보\n\n"
+        f"# Peglin Korean Revised {release_tag.removeprefix('peglin-ko-')}\n\n"
+        f"- 릴리스 태그: `{release_tag}`\n"
         f"- 번역 상태: `{status}`\n"
         f"- 번역 항목: {source_lock['translationCount']}개\n"
         f"- 대상 Steam 빌드: `{source_lock['steamBuildId']}`\n"
@@ -67,12 +70,18 @@ def build_release_candidate(
     project_root: Path,
     source_revision: str,
     output_dir: Path,
+    *,
+    release_tag: str,
     plugin_source_inputs: Iterable[str] = DEFAULT_PLUGIN_SOURCE_INPUTS,
 ) -> dict[str, Path]:
     """Validate locked inputs and create deterministic public release artifacts."""
 
     if REVISION_PATTERN.fullmatch(source_revision) is None or ".." in source_revision:
         raise ValueError("Source revision contains unsupported characters.")
+    if not isinstance(release_tag, str):
+        raise ValueError("Release tag must be a string.")
+    if not is_release_tag(release_tag):
+        raise ValueError("Release tag does not use the reserved translation version format.")
     terms_path = terms_path.expanduser().resolve()
     source_lock_path = source_lock_path.expanduser().resolve()
     project_root = project_root.expanduser().resolve()
@@ -91,6 +100,7 @@ def build_release_candidate(
     asset_hash = source_lock["resourcesAssetsSha256"]
     overlay_path = output_dir / f"peglin-ko-{build_id}-{asset_hash[:8]}.json"
     overlay = create_locked_overlay_patch(terms_path, source_lock, overlay_path)
+    prerelease = validate_release_tag_status(release_tag, overlay["status"])
     candidate_path = create_prebuilt_client_candidate(
         overlay_path,
         output_dir,
@@ -107,7 +117,9 @@ def build_release_candidate(
     _write_bytes_atomically(translation_notice_path, translation_notice_bytes)
 
     notes_path = output_dir / "release-notes.md"
-    notes_bytes = _release_notes(source_revision, source_lock, overlay["status"])
+    notes_bytes = _release_notes(
+        release_tag, source_revision, source_lock, overlay["status"]
+    )
     _write_bytes_atomically(notes_path, notes_bytes)
 
     artifacts = {
@@ -118,13 +130,15 @@ def build_release_candidate(
         notes_path.name: hashlib.sha256(notes_bytes).hexdigest(),
     }
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "kind": "peglin-korean-release-provenance",
         "game": "Peglin",
         "steamAppId": source_lock["steamAppId"],
         "language": "ko",
         "sourceRevision": source_revision,
+        "releaseTag": release_tag,
         "status": overlay["status"],
+        "prerelease": prerelease,
         "translationCount": source_lock["translationCount"],
         "source": {
             "steamBuildId": build_id,
