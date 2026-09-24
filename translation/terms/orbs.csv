@@ -8,7 +8,7 @@ Orbs/add_ballwark_to_damage,보유한 <style=ballwark>{[STATUS_EFFECT_COUNT]} �
 Orbs/add_ballwark_when_fired,공격 후 <style=ballwark>{[STATUS_EFFECT_GRANT_1]} 보호막</style>을 얻습니다.,draft,,
 Orbs/add_ballwark_when_fired_per_shield_peg,"공격 후 보드에 있는 <sprite name=""PEG_SHIELDED"">당 <style=ballwark>1 보호막</style>을 얻습니다.",draft,,
 Orbs/add_coins_on_draw,"이 구슬을 뽑을 때 보드에 <sprite name=""COIN_ONLY""> {[COINS_ON_DRAW]}개를 추가합니다.",draft,,
-Orbs/add_damage_per_ballwark,<style=ballwark>보호막 1개</style>마다 <style=dmg_bonus>+{[DAMAGE_PER_STACK]}의 대미지</style>를 줍니다.,draft,,
+Orbs/add_damage_per_ballwark,<style=ballwark>보호막 1</style>당 <style=dmg_bonus>+{[DAMAGE_PER_STACK]}의 대미지</style>를 줍니다.,draft,,
 Orbs/add_damage_per_rigged_bomb,"보드에 있는 <sprite name=""RIGGED_BOMB""> 하나당 대미지가 <style=dmg_bonus>+{[SPECIAL_PEG_DAMAGE_MULTIPLIER]}</style> 증가합니다.",draft,,
 Orbs/add_damage_per_shield_peg,"보드에 있는 <sprite name=""PEG_SHIELDED""> 하나당 대미지가 <style=dmg_bonus>+{[SHIELD_DAMAGE_MULTIPLIER]}</style> 증가합니다.",draft,,
 Orbs/add_finesse_per_crit,"구슬이 비행하는 동안 <sprite name=""CRIT_PEG"">가 {[NUMBER_OF_CRITS]}번 발동될 때마다 <style=finesse>정밀 1</style>을 얻습니다.",draft,,
