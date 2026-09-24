@@ -247,11 +247,22 @@ class ReleasePackagingTests(unittest.TestCase):
                     "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
                 )
             )
+            package_readme = archive.read("README.md").decode("utf-8")
             self.assertEqual(first_files["LICENSE"], archive.read("LICENSE"))
             self.assertEqual(
                 first_files["TRANSLATION-NOTICE.txt"],
                 archive.read("TRANSLATION-NOTICE.txt"),
             )
+        self.assertIn("Peglin.exe", package_readme)
+        self.assertIn("Type = MonoBehaviour", package_readme)
+        self.assertIn("BepInEx/plugins/PeglinKoreanRevised", package_readme)
+        self.assertIn("수동 설치 후 폴더 구조", package_readme)
+        self.assertIn("├── Peglin.exe", package_readme)
+        self.assertIn("├── README.md", package_readme)
+        self.assertIn("└── TRANSLATION-NOTICE.txt", package_readme)
+        self.assertIn("번역 상태: 초안", package_readme)
+        self.assertIn("AI 도구의 도움", package_readme)
+        self.assertNotIn("Assembly-CSharp.dll SHA-256", package_readme)
         self.assertEqual(
             manifest["runtime"]["pluginVersion"],
             package_manifest["runtime"]["pluginVersion"],

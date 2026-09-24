@@ -59,65 +59,68 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _candidate_readme(
-    overlay: dict[str, Any],
-    plugin_hash: str,
-    assembly_sha256: str,
-) -> str:
-    source = overlay["source"]
+def _candidate_readme(overlay: dict[str, Any]) -> str:
     review_note = (
-        "This draft translation has not received in-game review.\n"
+        "번역 상태: 초안입니다. 일부 문구는 게임 화면에서 검토되지 않았을 수 있습니다.\n\n"
         if overlay["status"] == "draft"
-        else "The translation entries are approved, but this package has not been verified in-game.\n"
+        else "번역 문구는 승인 상태입니다. 이 패치 전체가 모든 게임 화면에서 검수되었다는 뜻은 아닙니다.\n\n"
     )
     return (
-        "# Peglin Korean Revised candidate\n\n"
-        "This is an installable BepInEx plugin candidate generated from the "
-        "Peglin I2 Localization table.\n\n"
-        "## Requirements\n\n"
-        "- Peglin for Windows with the exact source build listed below.\n"
-        "- BepInEx Mono. The Peglin community pack currently listed on "
-        "[Thunderstore](https://thunderstore.io/c/peglin/p/BepInEx/"
-        "BepInExPack_Peglin/) is version "
-        f"{_PEGLIN_BEPINEX_PACK_VERSION} (BepInEx {_BEPINEX_VERSION}).\n\n"
-        "## Install\n\n"
-        "1. Close Peglin.\n"
-        "2. Install the Peglin BepInEx pack using Thunderstore Mod Manager, "
-        "r2modman, or its manual instructions.\n"
-        "3. If BepInEx/config/BepInEx.cfg does not exist yet, run Peglin once "
-        "with BepInEx installed, then close it. Open the config and, in "
-        "[Preloader.Entrypoint], "
-        "set Type = MonoBehaviour. Keep Assembly = UnityEngine.CoreModule.dll "
-        "and Method = .cctor, and preserve the rest of the file. The inspected "
-        "Peglin setup uses Application as the entrypoint; that can run plugin "
-        "Awake before Unity ticks MonoBehaviours, leaving Start and coroutines "
-        "inactive.\n"
-        "4. Extract this archive into the Peglin installation directory, the "
-        "folder containing Peglin.exe.\n"
-        "5. Start the game with BepInEx enabled and select Korean in the game "
-        "language settings.\n\n"
-        "To uninstall this candidate, close the game and remove "
-        "BepInEx/plugins/PeglinKoreanRevised/.\n\n"
-        "## Candidate details\n\n"
-        f"- Translation status: **{overlay['status']}**\n"
-        f"- Translated terms: **{len(overlay['terms'])}**\n"
-        f"- Steam build: **{source['steamBuildId']}**\n"
-        f"- Unity version: **{source['unityVersion']}**\n"
-        f"- resources.assets SHA-256: {source['assetSha256']}\n"
-        f"- Assembly-CSharp.dll SHA-256: {assembly_sha256}\n"
-        f"- Plugin SHA-256: {plugin_hash}\n\n"
-        "## License and translation notice\n\n"
-        "The project code and tools are provided under the MIT License in "
-        "LICENSE. Translation data is excluded from that license; see "
-        "TRANSLATION-NOTICE.txt.\n\n"
-        "At startup the plugin verifies the installed resources.assets hash "
-        "and the Assembly-CSharp.dll hash synchronously before waiting for "
-        "localization data. It refuses to apply "
-        "this candidate when either hash differs. It writes translations only "
-        "to Peglin's in-memory I2 Korean language table and refreshes localized "
-        "UI text; it does not write to the game installation. A later game "
-        "update requires a newly generated candidate.\n\n"
+        "# 페글린 한국어 번역 패치\n\n"
+        "개발 과정에서 AI 도구의 도움을 받았습니다.\n\n"
+        "## 설치\n\n"
+        "1. Peglin을 종료합니다.\n"
+        "2. [Peglin용 BepInEx 팩](https://thunderstore.io/c/peglin/p/"
+        "BepInEx/BepInExPack_Peglin/)을 설치합니다. 수동 설치라면 압축을 푼 뒤 "
+        "`BepInExPack_Peglin` 폴더 안의 파일과 폴더를 `Peglin.exe`가 있는 곳으로 "
+        "옮깁니다. 모드 매니저 사용자는 선택한 Peglin 프로필에 팩을 설치합니다.\n"
+        "3. 게임을 한 번 실행한 다음 종료합니다. `BepInEx/config/BepInEx.cfg`를 "
+        "메모장으로 엽니다. 모드 매니저를 사용한다면 프로필 안의 같은 경로에 있는 "
+        "파일을 엽니다. `[Preloader.Entrypoint]` 항목의 `Type` 값을 "
+        "`MonoBehaviour`로 바꿉니다. 나머지 설정은 그대로 둡니다.\n\n"
+        "   ```ini\n"
+        "   Type = MonoBehaviour\n"
+        "   ```\n\n"
+        "4. 이 ZIP 파일을 `Peglin.exe`가 있는 폴더에 풉니다. 모드 매니저를 "
+        "사용한다면 선택한 Peglin 프로필 폴더에 설치하고 게임도 매니저에서 "
+        "실행합니다.\n"
+        "5. 게임을 실행하고 언어 설정에서 한국어를 선택합니다.\n\n"
+        "## 수동 설치 후 폴더 구조\n\n"
+        "아래는 주요 경로만 표시한 예시입니다. 게임과 BepInEx 팩의 다른 파일 및 "
+        "폴더는 생략했습니다. 패치 ZIP에 들어 있는 안내와 라이선스 파일은 게임 "
+        "폴더 바로 아래에 함께 풀립니다.\n\n"
+        "```text\n"
+        "Peglin/                              (Peglin.exe가 있는 게임 폴더)\n"
+        "├── Peglin.exe\n"
+        "├── BepInEx/\n"
+        "│   ├── config/\n"
+        "│   │   └── BepInEx.cfg\n"
+        "│   └── plugins/\n"
+        "│       └── PeglinKoreanRevised/\n"
+        "│           ├── PeglinKoreanRevised.dll\n"
+        "│           ├── overlay.json\n"
+        "│           └── manifest.json\n"
+        "├── winhttp.dll                      (BepInEx 팩)\n"
+        "├── doorstop_config.ini              (BepInEx 팩)\n"
+        "├── doorstop_libs/                   (BepInEx 팩)\n"
+        "├── README.md                        (패치 설치 안내)\n"
+        "├── LICENSE\n"
+        "└── TRANSLATION-NOTICE.txt\n"
+        "```\n\n"
+        "업데이트하려면 게임을 종료하고 `BepInEx/plugins/"
+        "PeglinKoreanRevised` 폴더를 삭제한 뒤 최신 ZIP을 같은 위치에 풉니다.\n"
+        "제거할 때는 게임을 종료한 다음 같은 폴더를 삭제합니다.\n\n"
+        "게임 업데이트 후 번역이 나오지 않으면 [릴리스 목록]("
+        "https://github.com/PiesP/peglin-korean-revised/releases)에서 최신 패치를 "
+        "확인하세요. 설치나 실행 문제가 계속되면 [패치 문제 제보]("
+        "https://github.com/PiesP/peglin-korean-revised/issues/new?template="
+        "patch-problem.yml)를 이용해 주세요.\n\n"
+        "## 번역 상태\n\n"
         f"{review_note}"
+        "## 라이선스\n\n"
+        "프로젝트 코드와 도구에는 MIT 라이선스가 적용됩니다. 번역 자료는 MIT "
+        "범위에 포함되지 않습니다. 함께 제공된 LICENSE와 TRANSLATION-NOTICE.txt를 "
+        "확인해 주세요.\n"
     )
 
 
@@ -262,11 +265,7 @@ def _package_candidate(
     manifest_bytes = (
         json.dumps(package_manifest, ensure_ascii=False, indent=2) + "\n"
     ).encode("utf-8")
-    readme_bytes = _candidate_readme(
-        overlay,
-        plugin_sha256,
-        assembly_sha256,
-    ).encode("utf-8")
+    readme_bytes = _candidate_readme(overlay).encode("utf-8")
     build_id = source["steamBuildId"]
     asset_sha256 = source["assetSha256"]
     archive_path = candidate_dir / (
