@@ -27,6 +27,14 @@ possible without intercepting every text lookup. The current source manifest
 and its asset hash are generated from the installed game; see the
 build-candidate command for the current values.
 
+The inspected Peglin BepInEx configuration uses `Application`'s static
+initializer as its preloader entrypoint. This can load a plugin and run its
+`Awake` method before Unity starts ticking `MonoBehaviour` components, leaving
+`Start` and coroutines inactive. Set `Type = MonoBehaviour` under
+`[Preloader.Entrypoint]` in `BepInEx/config/BepInEx.cfg`, while preserving its
+`Assembly = UnityEngine.CoreModule.dll`, `Method = .cctor`, and other settings.
+This lets Unity's lifecycle callbacks and the translation coroutine run.
+
 ## Candidate behavior
 
 The plugin in plugin/Plugin.cs performs these steps:
@@ -77,10 +85,15 @@ and ZIP as a short-lived Actions artifact.
 
 1. Install BepInEx Mono for Peglin. The Peglin community pack page on
    Thunderstore provides mod-manager and manual installation instructions.
-2. Close Peglin and extract the candidate ZIP into the game's installation
+2. Close Peglin. If `BepInEx/config/BepInEx.cfg` does not exist yet, run
+   Peglin once with BepInEx installed to create it, then close the game.
+3. In the config, set `Type = MonoBehaviour` in `[Preloader.Entrypoint]`.
+   Keep `Assembly = UnityEngine.CoreModule.dll` and `Method = .cctor`; do not
+   replace the complete config file.
+4. Extract the candidate ZIP into the game's installation
    directory, the folder containing Peglin.exe.
-3. Start Peglin with BepInEx enabled and select Korean in the game settings.
-4. Check the BepInEx log for both verified source-file hashes and the number
+5. Start Peglin with BepInEx enabled and select Korean in the game settings.
+6. Check the BepInEx log for both verified source-file hashes and the number
    of translations applied.
 
 To remove the candidate, close Peglin and delete
@@ -94,5 +107,7 @@ does not mark the translations approved or establish in-game visual acceptance.
 - [Peglin developer response about mod support](https://itch.io/t/2065629/mod-support)
 - [Peglin BepInEx pack and installation instructions](https://thunderstore.io/c/peglin/p/BepInEx/BepInExPack_Peglin/)
 - [BepInEx basic plugin guide](https://docs.bepinex.dev/articles/dev_guide/plugin_tutorial/index.html)
+- [BepInEx entrypoint troubleshooting for Unity 2017 and newer](https://docs.bepinex.dev/articles/user_guide/troubleshooting.html#unity-2017-and-newer)
 - [BepInEx runtime patching guide](https://docs.bepinex.dev/articles/dev_guide/runtime_patching.html)
 - [Peglin community modding guide](https://peglin.wiki.gg/wiki/Modding)
+- [Related BepInEx Unity Mono report: plugins load from Application's initializer but callbacks and coroutines do not run](https://github.com/BepInEx/BepInEx/issues/1393)
