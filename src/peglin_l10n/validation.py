@@ -123,6 +123,15 @@ def _markup_is_balanced(text: str) -> bool:
     return not stack and vertexp_open_count == 0
 
 
+def _glossary_term_occurs(source_term: str, text: str) -> bool:
+    """Match whole glossary terms without splitting hyphenated game names."""
+    return re.search(
+        rf"(?<![\w-]){re.escape(source_term)}(?![\w-])",
+        text,
+        re.IGNORECASE,
+    ) is not None
+
+
 def read_terms_csv(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
@@ -604,10 +613,8 @@ def validate(
                 continue
             for entry in glossary:
                 source_term = entry["Term"]
-                source_contains_term = re.search(
-                    rf"(?<!\w){re.escape(source_term)}(?!\w)",
-                    row.get("English", ""),
-                    re.IGNORECASE,
+                source_contains_term = _glossary_term_occurs(
+                    source_term, row.get("English", "")
                 )
                 if source_contains_term and entry["PreferredKorean"] not in translation:
                     issues.append(
@@ -707,7 +714,7 @@ def validate(
 
             for entry in glossary:
                 source_term = entry["Term"]
-                if re.search(rf"(?<!\w){re.escape(source_term)}(?!\w)", row.get("English", ""), re.IGNORECASE):
+                if _glossary_term_occurs(source_term, row.get("English", "")):
                     if entry["PreferredKorean"] not in translation:
                         issues.append(
                             Issue(
