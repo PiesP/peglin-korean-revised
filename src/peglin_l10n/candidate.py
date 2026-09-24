@@ -182,6 +182,114 @@ def _write_zip_atomically(path: Path, files: dict[str, bytes]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+def _read_overlay(path: Path) -> dict[str, Any]:
+    try:
+        overlay = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Could not read overlay JSON: {exc}") from exc
+    if not isinstance(overlay, dict) or overlay.get("kind") != "peglin-korean-overlay":
+        raise ValueError("Overlay must be a Peglin Korean JSON overlay.")
+    if overlay.get("game") != "Peglin" or overlay.get("language") != "ko":
+        raise ValueError("Overlay must target Peglin and Korean (ko).")
+
+    source = overlay.get("source")
+    terms = overlay.get("terms")
+    if not isinstance(source, dict) or not isinstance(terms, dict) or not terms:
+        raise ValueError("Overlay source metadata and translation terms are required.")
+    build_id = source.get("steamBuildId")
+    asset_sha256 = source.get("assetSha256")
+    if not isinstance(build_id, str) or _BUILD_ID_PATTERN.fullmatch(build_id) is None:
+        raise ValueError("Overlay source steamBuildId is invalid.")
+    if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
+        raise ValueError("Overlay source assetSha256 is invalid.")
+    if overlay.get("status") not in {"draft", "approved"}:
+        raise ValueError("Overlay status must be draft or approved.")
+    return overlay
+
+
+def _package_candidate(
+    overlay_path: Path,
+    candidate_dir: Path,
+    plugin_dll: Path,
+    assembly_sha256: str,
+) -> Path:
+    overlay = _read_overlay(overlay_path)
+    if not plugin_dll.is_file():
+        raise ValueError(f"Plugin DLL does not exist: {plugin_dll}")
+    if _SHA256_PATTERN.fullmatch(assembly_sha256) is None:
+        raise ValueError("Assembly-CSharp.dll hash must be a lowercase SHA-256 digest.")
+
+    source = overlay["source"]
+    terms = overlay["terms"]
+    overlay_bytes = overlay_path.read_bytes()
+    plugin_bytes = plugin_dll.read_bytes()
+    overlay_sha256 = hashlib.sha256(overlay_bytes).hexdigest()
+    plugin_sha256 = hashlib.sha256(plugin_bytes).hexdigest()
+    package_manifest = {
+        "schemaVersion": 1,
+        "kind": "peglin-korean-client-candidate",
+        "game": "Peglin",
+        "steamAppId": "1296610",
+        "language": "ko",
+        "status": overlay["status"],
+        "translationCount": len(terms),
+        "source": source,
+        "runtime": {
+            "engine": "Unity Mono",
+            "i2Localization": "I2.Loc",
+            "loader": "BepInEx Mono",
+            "minimumBepInExVersion": _BEPINEX_VERSION,
+            "recommendedPeglinPack": f"BepInExPack_Peglin {_PEGLIN_BEPINEX_PACK_VERSION}",
+            "pluginGuid": _PLUGIN_GUID,
+            "pluginVersion": _PLUGIN_VERSION,
+            "assemblyCSharpSha256": assembly_sha256,
+        },
+        "files": {
+            _PLUGIN_ARCHIVE_PATH: plugin_sha256,
+            "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_sha256,
+        },
+    }
+    manifest_bytes = (
+        json.dumps(package_manifest, ensure_ascii=False, indent=2) + "\n"
+    ).encode("utf-8")
+    readme_bytes = _candidate_readme(
+        overlay,
+        plugin_sha256,
+        assembly_sha256,
+    ).encode("utf-8")
+    build_id = source["steamBuildId"]
+    asset_sha256 = source["assetSha256"]
+    archive_path = candidate_dir / (
+        f"PeglinKoreanRevised-{build_id}-{asset_sha256[:8]}.zip"
+    )
+    _write_zip_atomically(
+        archive_path,
+        {
+            _PLUGIN_ARCHIVE_PATH: plugin_bytes,
+            "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_bytes,
+            "BepInEx/plugins/PeglinKoreanRevised/manifest.json": manifest_bytes,
+            "README.md": readme_bytes,
+        },
+    )
+    return archive_path
+
+
+def create_prebuilt_client_candidate(
+    overlay_path: Path,
+    candidate_dir: Path,
+    plugin_dll: Path,
+    assembly_sha256: str,
+) -> Path:
+    """Package a verified tracked plugin without an installed Peglin copy."""
+
+    return _package_candidate(
+        overlay_path.expanduser().resolve(),
+        candidate_dir.expanduser().resolve(),
+        plugin_dll.expanduser().resolve(),
+        assembly_sha256,
+    )
+
+
 def create_client_candidate(
     overlay_path: Path,
     game_root: Path,
@@ -213,28 +321,14 @@ def create_client_candidate(
     if candidate_dir == game_root or candidate_dir.is_relative_to(game_root):
         raise ValueError("Candidate output must be outside the Peglin installation directory.")
 
-    try:
-        overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Could not read overlay JSON: {exc}") from exc
-    if not isinstance(overlay, dict) or overlay.get("kind") != "peglin-korean-overlay":
-        raise ValueError("Overlay must be a Peglin Korean JSON overlay.")
-    if overlay.get("game") != "Peglin" or overlay.get("language") != "ko":
-        raise ValueError("Overlay must target Peglin and Korean (ko).")
-
-    source = overlay.get("source")
-    terms = overlay.get("terms")
-    if not isinstance(source, dict) or not isinstance(terms, dict) or not terms:
-        raise ValueError("Overlay source metadata and translation terms are required.")
+    overlay = _read_overlay(overlay_path)
+    source = overlay["source"]
     build_id = source.get("steamBuildId")
     asset_sha256 = source.get("assetSha256")
     if not isinstance(build_id, str) or _BUILD_ID_PATTERN.fullmatch(build_id) is None:
         raise ValueError("Overlay source steamBuildId is invalid.")
     if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
         raise ValueError("Overlay source assetSha256 is invalid.")
-    if overlay.get("status") not in {"draft", "approved"}:
-        raise ValueError("Overlay status must be draft or approved.")
-
     installed_asset_sha256 = _sha256_file(game_asset)
     if installed_asset_sha256 != asset_sha256:
         raise ValueError(
@@ -292,53 +386,9 @@ def create_client_candidate(
     if _sha256_file(game_assembly) != installed_assembly_sha256:
         raise ValueError("Peglin Assembly-CSharp.dll changed while building the client candidate.")
 
-    overlay_bytes = overlay_path.read_bytes()
-    plugin_bytes = plugin_dll.read_bytes()
-    overlay_sha256 = hashlib.sha256(overlay_bytes).hexdigest()
-    plugin_sha256 = hashlib.sha256(plugin_bytes).hexdigest()
-    assembly_sha256 = installed_assembly_sha256
-    package_manifest = {
-        "schemaVersion": 1,
-        "kind": "peglin-korean-client-candidate",
-        "game": "Peglin",
-        "steamAppId": "1296610",
-        "language": "ko",
-        "status": overlay["status"],
-        "translationCount": len(terms),
-        "source": source,
-        "runtime": {
-            "engine": "Unity Mono",
-            "i2Localization": "I2.Loc",
-            "loader": "BepInEx Mono",
-            "minimumBepInExVersion": _BEPINEX_VERSION,
-            "recommendedPeglinPack": f"BepInExPack_Peglin {_PEGLIN_BEPINEX_PACK_VERSION}",
-            "pluginGuid": _PLUGIN_GUID,
-            "pluginVersion": _PLUGIN_VERSION,
-            "assemblyCSharpSha256": assembly_sha256,
-        },
-        "files": {
-            _PLUGIN_ARCHIVE_PATH: plugin_sha256,
-            "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_sha256,
-        },
-    }
-    manifest_bytes = (
-        json.dumps(package_manifest, ensure_ascii=False, indent=2) + "\n"
-    ).encode("utf-8")
-    readme_bytes = _candidate_readme(
-        overlay,
-        plugin_sha256,
-        assembly_sha256,
-    ).encode("utf-8")
-    archive_path = candidate_dir / (
-        f"PeglinKoreanRevised-{build_id}-{asset_sha256[:8]}.zip"
+    return _package_candidate(
+        overlay_path,
+        candidate_dir,
+        plugin_dll,
+        installed_assembly_sha256,
     )
-    _write_zip_atomically(
-        archive_path,
-        {
-            _PLUGIN_ARCHIVE_PATH: plugin_bytes,
-            "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_bytes,
-            "BepInEx/plugins/PeglinKoreanRevised/manifest.json": manifest_bytes,
-            "README.md": readme_bytes,
-        },
-    )
-    return archive_path

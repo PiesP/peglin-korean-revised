@@ -11,7 +11,14 @@ from typing import Any
 
 from .extract import APP_ID
 from .fingerprints import source_fingerprint as compute_source_fingerprint
-from .validation import lint_overrides, read_overrides, read_terms_csv, validate
+from .validation import (
+    lint_overrides,
+    read_overrides,
+    read_terms_csv,
+    read_translation_directory,
+    validate,
+    validate_locked_translations,
+)
 
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -208,5 +215,59 @@ def create_overlay_patch(
         (terms_path, source_manifest_path, overrides_path, glossary_path),
         manifest,
     )
+    _write_json_atomically(output_path, document)
+    return document
+
+
+def create_locked_overlay_patch(
+    terms_path: Path,
+    source_lock: dict[str, Any],
+    output_path: Path,
+) -> dict[str, Any]:
+    """Create an overlay from public CSVs and their source metadata lock."""
+
+    _, issues = validate_locked_translations(terms_path, source_lock)
+    errors = [issue for issue in issues if issue.severity == "error"]
+    if errors:
+        details = "; ".join(
+            f"{issue.code}{f' [{issue.term}]' if issue.term else ''}: {issue.message}"
+            for issue in errors
+        )
+        raise ValueError(f"Locked translation validation failed: {details}")
+    rows = read_translation_directory(terms_path)
+    lock_terms = source_lock["terms"]
+    terms: dict[str, dict[str, str]] = {}
+    any_draft = False
+    for term in sorted(rows):
+        row = rows[term]
+        entry = {
+            "translation": row["Translation"],
+            "status": row["Status"],
+            "sourceFingerprint": lock_terms[term]["sourceFingerprint"],
+        }
+        if row["ReviewedBuildId"]:
+            entry["reviewedBuildId"] = row["ReviewedBuildId"]
+        terms[term] = entry
+        any_draft = any_draft or row["Status"] == "draft"
+
+    document: dict[str, Any] = {
+        "schemaVersion": 1,
+        "kind": "peglin-korean-overlay",
+        "game": "Peglin",
+        "language": "ko",
+        "status": "draft" if any_draft else "approved",
+        "source": {
+            "steamAppId": source_lock["steamAppId"],
+            "steamBuildId": source_lock["steamBuildId"],
+            "unityVersion": source_lock["unityVersion"],
+            "assetSha256": source_lock["resourcesAssetsSha256"],
+        },
+        "terms": terms,
+    }
+    resolved_output = output_path.resolve()
+    if resolved_output == terms_path.resolve() or resolved_output.is_relative_to(
+        terms_path.resolve()
+    ):
+        raise ValueError("Overlay output must be outside the contribution CSV directory.")
     _write_json_atomically(output_path, document)
     return document

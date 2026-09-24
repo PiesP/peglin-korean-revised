@@ -12,6 +12,7 @@ from typing import Any
 
 from .extract import CSV_FIELDS
 from .fingerprints import source_fingerprint
+from .source_lock import read_source_lock
 
 TOKEN_PATTERN = re.compile(
     r"<[^>\r\n]+>"
@@ -21,6 +22,14 @@ TOKEN_PATTERN = re.compile(
     # A space flag needs a delimiter after its conversion to avoid matching prose like "% of".
     r"|%(?:\d+\$)?[-+#0]*\d*(?:\.\d+)?[a-zA-Z%]"
     r"|%(?:\d+\$)?[-+#0 ]*\d*(?:\.\d+)?[a-zA-Z%](?![a-zA-Z])"
+)
+
+TRANSLATION_FIELDS = (
+    "Term",
+    "Translation",
+    "Status",
+    "ReviewedBuildId",
+    "Comment",
 )
 
 
@@ -139,7 +148,63 @@ def index_terms_csv(path: Path) -> dict[str, dict[str, str]]:
     return indexed
 
 
+def read_translation_directory(path: Path) -> dict[str, dict[str, str]]:
+    """Read public contribution CSVs without loading proprietary source text."""
+
+    if not path.is_dir():
+        raise ValueError(f"Translation terms directory was not found: {path}")
+    csv_paths = sorted(path.glob("*.csv"))
+    if not csv_paths:
+        raise ValueError(f"Translation terms directory contains no CSV files: {path}")
+    terms: dict[str, dict[str, str]] = {}
+    for csv_path in csv_paths:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as stream:
+            reader = csv.DictReader(stream)
+            if tuple(reader.fieldnames or ()) != TRANSLATION_FIELDS:
+                raise ValueError(
+                    f"{csv_path.name} must contain the exact columns: "
+                    + ", ".join(TRANSLATION_FIELDS)
+                )
+            for row_number, row in enumerate(reader, start=2):
+                if None in row:
+                    raise ValueError(f"{csv_path.name} row {row_number} has extra columns.")
+                normalized = {field: row.get(field) or "" for field in TRANSLATION_FIELDS}
+                term = normalized["Term"]
+                if not term.strip() or term != term.strip():
+                    raise ValueError(
+                        f"{csv_path.name} row {row_number} has an empty or padded term key."
+                    )
+                if term in terms:
+                    raise ValueError(f"Duplicate term key in contribution CSVs: {term!r}.")
+                normalized["_file"] = csv_path.name
+                terms[term] = normalized
+    return terms
+
+
+def _translation_rows_as_overrides(path: Path) -> dict[str, Any]:
+    rows = read_translation_directory(path)
+    lock = read_source_lock(path.parent / "source-lock.json")
+    lock_terms = lock["terms"]
+    overrides: dict[str, Any] = {}
+    for term, row in rows.items():
+        metadata = lock_terms.get(term)
+        entry: dict[str, str] = {
+            "translation": row["Translation"],
+            "status": row["Status"],
+        }
+        if isinstance(metadata, dict) and isinstance(metadata.get("sourceFingerprint"), str):
+            entry["sourceFingerprint"] = metadata["sourceFingerprint"]
+        if row["ReviewedBuildId"]:
+            entry["reviewedBuildId"] = row["ReviewedBuildId"]
+        if row["Comment"]:
+            entry["comment"] = row["Comment"]
+        overrides[term] = entry
+    return overrides
+
+
 def read_overrides(path: Path) -> dict[str, Any]:
+    if path.is_dir():
+        return _translation_rows_as_overrides(path)
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("Override file root must be a JSON object.")
@@ -153,6 +218,9 @@ def read_overrides(path: Path) -> dict[str, Any]:
 
 def lint_overrides(path: Path) -> tuple[dict[str, int], list[Issue]]:
     """Check tracked override metadata without requiring a local game snapshot."""
+    if path.is_dir():
+        lock = read_source_lock(path.parent / "source-lock.json")
+        return validate_locked_translations(path, lock)
     data = json.loads(path.read_text(encoding="utf-8"))
     issues: list[Issue] = []
     if not isinstance(data, dict):
@@ -269,6 +337,171 @@ def lint_overrides(path: Path) -> tuple[dict[str, int], list[Issue]]:
     return summary, issues
 
 
+def validate_locked_translations(
+    terms_path: Path,
+    source_lock: dict[str, Any],
+) -> tuple[dict[str, int], list[Issue]]:
+    """Validate public contribution CSVs solely against safe locked metadata."""
+
+    rows = read_translation_directory(terms_path)
+    lock_terms = source_lock.get("terms")
+    if not isinstance(lock_terms, dict):
+        raise ValueError("Source lock terms must be an object.")
+    issues: list[Issue] = []
+    expected_keys = set(lock_terms)
+    actual_keys = set(rows)
+    for term in sorted(expected_keys - actual_keys):
+        issues.append(
+            Issue(
+                "error",
+                "MISSING_TRANSLATION_TERM",
+                "Locked term is missing from contribution CSVs.",
+                term,
+            )
+        )
+    for term in sorted(actual_keys - expected_keys):
+        issues.append(
+            Issue(
+                "error",
+                "UNKNOWN_TRANSLATION_TERM",
+                "Contribution term is absent from the source lock.",
+                term,
+            )
+        )
+
+    referenced_files: set[str] = set()
+    status_counts = {"draft": 0, "approved": 0}
+    for term in sorted(expected_keys & actual_keys):
+        row = rows[term]
+        metadata = lock_terms[term]
+        if not isinstance(metadata, dict):
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_LOCKED_TERM",
+                    "Locked term metadata is invalid.",
+                    term,
+                )
+            )
+            continue
+        expected_file = metadata.get("file")
+        if isinstance(expected_file, str):
+            referenced_files.add(expected_file)
+        if row["_file"] != expected_file:
+            issues.append(
+                Issue(
+                    "error",
+                    "TRANSLATION_FILE_MISMATCH",
+                    f"Term must remain in {expected_file!r}.",
+                    term,
+                )
+            )
+        fingerprint = metadata.get("sourceFingerprint")
+        if (
+            not isinstance(fingerprint, str)
+            or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None
+        ):
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_LOCKED_FINGERPRINT",
+                    "Locked source fingerprint is invalid.",
+                    term,
+                )
+            )
+        translation = row["Translation"]
+        if not translation.strip():
+            issues.append(
+                Issue("error", "EMPTY_OVERRIDE", "Translation must be nonempty.", term)
+            )
+        status = row["Status"]
+        if status not in status_counts:
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_OVERRIDE_STATUS",
+                    "Status must be draft or approved.",
+                    term,
+                )
+            )
+        else:
+            status_counts[status] += 1
+        reviewed_build = row["ReviewedBuildId"]
+        if status == "approved" and not reviewed_build:
+            issues.append(
+                Issue(
+                    "error",
+                    "OVERRIDE_BUILD_UNBOUND",
+                    "Approved translation has no ReviewedBuildId.",
+                    term,
+                )
+            )
+        elif status == "approved" and reviewed_build != source_lock.get("steamBuildId"):
+            issues.append(
+                Issue(
+                    "error",
+                    "OVERRIDE_BUILD_MISMATCH",
+                    f"Approved translation must be reviewed for build {source_lock.get('steamBuildId')!r}.",
+                    term,
+                )
+            )
+        expected_tokens = metadata.get("protectedTokens")
+        if not isinstance(expected_tokens, list):
+            issues.append(
+                Issue(
+                    "error",
+                    "INVALID_LOCKED_TOKENS",
+                    "Locked protected tokens are invalid.",
+                    term,
+                )
+            )
+        elif Counter(expected_tokens) != Counter(protected_tokens(translation)):
+            issues.append(
+                Issue(
+                    "error",
+                    "PROTECTED_TOKEN_MISMATCH",
+                    "Translation protected tokens differ: "
+                    f"source={expected_tokens!r}, "
+                    f"translation={protected_tokens(translation)!r}.",
+                    term,
+                )
+            )
+        if translation and not _markup_is_balanced(translation):
+            issues.append(
+                Issue(
+                    "error",
+                    "UNBALANCED_MARKUP",
+                    "Translation has unbalanced markup tags.",
+                    term,
+                )
+            )
+
+    actual_files = {path.name for path in terms_path.glob("*.csv")}
+    for file_name in sorted(actual_files - referenced_files):
+        issues.append(
+            Issue(
+                "error",
+                "UNEXPECTED_TRANSLATION_FILE",
+                f"CSV is not referenced by the source lock: {file_name}",
+            )
+        )
+    for file_name in sorted(referenced_files - actual_files):
+        issues.append(
+            Issue(
+                "error",
+                "MISSING_TRANSLATION_FILE",
+                f"Locked CSV is missing: {file_name}",
+            )
+        )
+
+    return {
+        "overrides": len(rows),
+        "draft": status_counts["draft"],
+        "approved": status_counts["approved"],
+        "errors": sum(issue.severity == "error" for issue in issues),
+    }, issues
+
+
 def _check_translation(
     source: str, translation: str, term: str, source_name: str
 ) -> list[Issue]:
@@ -316,8 +549,8 @@ def validate(
 ) -> tuple[dict[str, int], list[Issue]]:
     if glossary_path is not None and not glossary_path.is_file():
         raise FileNotFoundError(f"Glossary file was not found: {glossary_path}")
-    if overrides_path is not None and not overrides_path.is_file():
-        raise FileNotFoundError(f"Override file was not found: {overrides_path}")
+    if overrides_path is not None and not overrides_path.exists():
+        raise FileNotFoundError(f"Translation input was not found: {overrides_path}")
 
     rows = read_terms_csv(terms_path)
     issues: list[Issue] = []
