@@ -110,7 +110,7 @@ Orbs/convert_first_peg_to_rigged_bomb,"첫 번째로 <style=hit>명중</style>�
 Orbs/convert_peg_to_bomb2,"<sprite name=""PEG"">에 {[CONVERT_COUNT]}번 <style=hit>명중</style>할 때마다 명중한 페그를 <sprite name=""BOMB_REGULAR"">으로 변환합니다.",draft,,
 Orbs/convert_peg_to_crit,"<sprite name=""PEG"">에 {[CONVERT_COUNT]}번 <style=hit>명중</style>할 때마다 명중한 페그를 <sprite name=""TEMP_CRIT"">으로 변환합니다.",draft,,
 Orbs/convert_peg_to_rigged_bomb,"<sprite name=""PEG"">에 {[CONVERT_COUNT]}번 <style=hit>명중</style>할 때마다 명중한 페그를 <sprite name=""RIGGED_BOMB"">으로 변환합니다.",draft,,
-Orbs/convert_to_gold_peg_and_add_coin,"<sprite name=""PEG"">를 {[GOLD_PEG_CONVERT_COUNT]}번 <style=hit>명중</style>할 때마다 명중한 페그를 황금 페그로 바꾸고, 골드 {[EXTRA_COINS_ON_CONVERT]} <sprite name=""GOLD"">도 추가로 얻습니다.",draft,,
+Orbs/convert_to_gold_peg_and_add_coin,"{[GOLD_PEG_CONVERT_COUNT]}번 <sprite name=""PEG""> <style=hit>명중</style>할 때마다 황금 구슬이 되고 {[EXTRA_COINS_ON_CONVERT]} <sprite name=""GOLD"">이 추가됩니다.",draft,,
 Orbs/copy_another_orb,재장전할 때마다 보유한 구슬 중 무작위 하나로 변합니다.,draft,,
 Orbs/countorb_attack_name,반격 공구,draft,,
 Orbs/counts_pegs_multi,각 페그를 {[MULTIHIT_LEVEL]}번 <style=activate>활성화</style>합니다.[i2p_One]각 페그를 {[MULTIHIT_LEVEL]}번 <style=activate>활성화</style>합니다.,draft,,
