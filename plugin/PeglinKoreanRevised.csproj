@@ -3,7 +3,7 @@
     <TargetFramework>net46</TargetFramework>
     <AssemblyName>PeglinKoreanRevised</AssemblyName>
     <RootNamespace>PeglinKoreanRevised</RootNamespace>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <LangVersion>9.0</LangVersion>
     <Deterministic>true</Deterministic>
     <DebugType>none</DebugType>
