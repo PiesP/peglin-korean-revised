@@ -59,3 +59,10 @@ BepInEx 자체는 별도로 제거할 수 있습니다.
 [패치 문제 제보](https://github.com/PiesP/peglin-korean-revised/issues/new?template=patch-problem.yml)를
 이용해 주세요. 번역 파일을 직접 수정하려면
 [기여 안내](CONTRIBUTING.ko.md)를 참고하세요.
+
+## 라이선스
+
+저장소에서 직접 작성한 코드, 도구와 안내 문서는 [MIT License](LICENSE)로
+제공합니다. `translation/`의 번역 및 게임 관련 자료는 이 라이선스의 범위에
+포함되지 않습니다. Peglin과 게임 내 콘텐츠의 권리는 각 권리자에게 있으며,
+이 저장소는 해당 콘텐츠에 대한 별도 이용 허락을 부여하지 않습니다.
