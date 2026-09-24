@@ -1,0 +1,13 @@
+{
+  "name": "translation-release-tag-immutability",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/tags/peglin-ko-v*"],
+      "exclude": []
+    }
+  },
+  "rules": [{"type": "update"}, {"type": "deletion"}]
+}

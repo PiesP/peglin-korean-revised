@@ -4,8 +4,14 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
+
+SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
+sys.path.insert(0, str(SOURCE_ROOT))
+
+from peglin_l10n.release_tag import is_release_tag  # noqa: E402
 
 
 ADMIN_LOGIN = "piesp"
@@ -184,8 +190,7 @@ def issue_number_from_commit_message(message: object) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def translation_csv_changed(repository: str, source_sha: str) -> bool:
-    commit = github_api(repository, f"commits/{source_sha}")
+def translation_csv_changed(commit: object) -> bool:
     files = commit.get("files") if isinstance(commit, dict) else None
     if not isinstance(files, list) or not files or len(files) >= 300:
         return False
@@ -208,9 +213,63 @@ def issue_has_permission(repository: str, issue_number: int) -> bool:
     )
 
 
-def write_result(eligible: bool, summary: str) -> None:
+def resolve_annotated_release_tag(
+    repository: str, release_tag: str, source_sha: str
+) -> tuple[str, str] | None:
+    tag_reference = github_api(repository, f"git/ref/tags/{release_tag}")
+    if (
+        not isinstance(tag_reference, dict)
+        or tag_reference.get("ref") != f"refs/tags/{release_tag}"
+        or not isinstance(tag_reference.get("object"), dict)
+    ):
+        return None
+    reference_object = tag_reference["object"]
+    tag_object_sha = reference_object.get("sha")
+    if (
+        reference_object.get("type") != "tag"
+        or not isinstance(tag_object_sha, str)
+        or re.fullmatch(r"[0-9a-f]{40}", tag_object_sha) is None
+    ):
+        return None
+
+    tag_object = github_api(repository, f"git/tags/{tag_object_sha}")
+    target = tag_object.get("object") if isinstance(tag_object, dict) else None
+    if (
+        not isinstance(tag_object, dict)
+        or tag_object.get("tag") != release_tag
+        or not isinstance(target, dict)
+        or target.get("type") != "commit"
+        or not isinstance(target.get("sha"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", target["sha"]) is None
+        or target["sha"] != source_sha
+    ):
+        return None
+    return tag_object_sha, target["sha"]
+
+
+def source_is_current_master_tip(repository: str, source_sha: str) -> bool:
+    reference = github_api(repository, "git/ref/heads/master")
+    target = reference.get("object") if isinstance(reference, dict) else None
+    return (
+        isinstance(target, dict)
+        and target.get("type") == "commit"
+        and target.get("sha") == source_sha
+    )
+
+
+def write_result(
+    eligible: bool,
+    summary: str,
+    *,
+    source_sha: str = "",
+    release_tag: str = "",
+    tag_object_sha: str = "",
+) -> None:
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         output.write(f"eligible={'true' if eligible else 'false'}\n")
+        output.write(f"source_sha={source_sha}\n")
+        output.write(f"release_tag={release_tag}\n")
+        output.write(f"tag_object_sha={tag_object_sha}\n")
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open(
         "a", encoding="utf-8"
     ) as report:
@@ -219,15 +278,44 @@ def write_result(eligible: bool, summary: str) -> None:
 
 def verify_release_source() -> None:
     source_sha = os.environ["SOURCE_SHA"]
-    if os.environ["SOURCE_REF"] != "refs/heads/master":
-        write_result(False, "Release skipped: source is not master.")
+    source_ref = os.environ["SOURCE_REF"]
+    release_tag = os.environ["RELEASE_TAG"]
+    if (
+        os.environ["EVENT_NAME"] != "push"
+        or source_ref != f"refs/tags/{release_tag}"
+        or not is_release_tag(release_tag)
+    ):
+        write_result(False, "Release rejected: event ref is not a valid translation version tag.")
         return
 
-    event_path = Path(os.environ["EVENT_PATH"])
-    event = json.loads(event_path.read_text(encoding="utf-8"))
+    if os.environ["EVENT_ACTOR"].casefold() != ADMIN_LOGIN:
+        write_result(False, "Release rejected: the version tag must be pushed by @PiesP.")
+        return
+
     repository = os.environ["GITHUB_REPOSITORY"]
+    resolved_tag = resolve_annotated_release_tag(repository, release_tag, source_sha)
+    if resolved_tag is None:
+        write_result(
+            False,
+            "Release rejected: the version tag must be an annotated tag that points "
+            "directly to the event commit.",
+            source_sha=source_sha,
+            release_tag=release_tag,
+        )
+        return
+    tag_object_sha, resolved_source_sha = resolved_tag
+    if not source_is_current_master_tip(repository, resolved_source_sha):
+        write_result(
+            False,
+            "Release rejected: the version tag must target the current master tip.",
+            source_sha=resolved_source_sha,
+            release_tag=release_tag,
+            tag_object_sha=tag_object_sha,
+        )
+        return
+
     associated_pull_requests = github_api(
-        repository, f"commits/{source_sha}/pulls"
+        repository, f"commits/{resolved_source_sha}/pulls"
     )
     if not isinstance(associated_pull_requests, list):
         raise SystemExit("GitHub returned an invalid pull request list.")
@@ -236,9 +324,19 @@ def verify_release_source() -> None:
     )
 
     verified_prs = verified_pull_requests(
-        repository, source_sha, pull_requests
+        repository, resolved_source_sha, pull_requests
     )
     if verified_prs:
+        if not has_successful_required_check(repository, resolved_source_sha):
+            write_result(
+                False,
+                "Release rejected: wait for a successful `validate` check on the exact "
+                "merged master commit, then create a new version tag.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
+            )
+            return
         descriptions = ", ".join(
             f"PR #{pull_request['number']} ({method})"
             for pull_request, method in verified_prs
@@ -247,6 +345,9 @@ def verify_release_source() -> None:
             True,
             "Release source verified as permission-confirmed "
             f"{descriptions} with a successful required validate check.",
+            source_sha=resolved_source_sha,
+            release_tag=release_tag,
+            tag_object_sha=tag_object_sha,
         )
         return
 
@@ -256,65 +357,96 @@ def verify_release_source() -> None:
         and pull_request["base"].get("ref") == "master"
         for pull_request in pull_requests
     )
-    actor = os.environ["EVENT_ACTOR"].casefold()
-    triggering_actor = os.environ["TRIGGERING_ACTOR"].casefold()
-    if (
-        os.environ["EVENT_NAME"] == "push"
-        and actor == ADMIN_LOGIN
-        and triggering_actor == ADMIN_LOGIN
-        and not has_associated_master_pr
-    ):
-        head_commit = event.get("head_commit")
-        pushed_commits = event.get("commits")
+    if not has_associated_master_pr:
+        source_commit = github_api(repository, f"commits/{resolved_source_sha}")
+        commit_details = (
+            source_commit.get("commit")
+            if isinstance(source_commit, dict)
+            else None
+        )
+        parents = (
+            source_commit.get("parents")
+            if isinstance(source_commit, dict)
+            else None
+        )
         if (
-            not isinstance(head_commit, dict)
-            or head_commit.get("id") != source_sha
-            or event.get("after") != source_sha
-            or not isinstance(pushed_commits, list)
-            or len(pushed_commits) != 1
-            or not isinstance(pushed_commits[0], dict)
-            or pushed_commits[0].get("id") != source_sha
+            not isinstance(source_commit, dict)
+            or source_commit.get("sha") != resolved_source_sha
+            or not isinstance(commit_details, dict)
+            or not isinstance(commit_details.get("message"), str)
+            or not isinstance(parents, list)
+            or len(parents) != 1
+            or not isinstance(parents[0], dict)
+            or not isinstance(parents[0].get("sha"), str)
+            or re.fullmatch(r"[0-9a-f]{40}", parents[0]["sha"]) is None
         ):
             write_result(
                 False,
-                "Release skipped: issue updates must be a single-commit push to master.",
+                "Release rejected: an administrator issue update must be a single-parent commit.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
             )
             return
-        issue_number = issue_number_from_commit_message(head_commit.get("message"))
+        issue_number = issue_number_from_commit_message(commit_details["message"])
         if issue_number is None:
             write_result(
                 False,
-                "Release skipped: an administrator issue update must end its commit "
-                "message with the Issue: #<number> trailer.",
+                "Release rejected: add an `Issue: #<number>` trailer to the final line "
+                "of the administrator issue commit message.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
             )
             return
-        if not translation_csv_changed(repository, source_sha):
+        if not translation_csv_changed(source_commit):
             write_result(
                 False,
-                "Release skipped: the single issue commit must change translation CSV "
-                "files only.",
+                "Release rejected: an administrator issue commit must change translation "
+                "CSV files only.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
             )
             return
         if not issue_has_permission(repository, issue_number):
             write_result(
                 False,
-                f"Release skipped: issue #{issue_number} lacks the required "
+                f"Release rejected: issue #{issue_number} does not contain the checked "
                 "translation permission confirmation.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
+            )
+            return
+        if not has_successful_required_check(repository, resolved_source_sha):
+            write_result(
+                False,
+                "Release rejected: wait for a successful `validate` check on the issue "
+                "commit, then rerun this workflow while that commit remains the master tip.",
+                source_sha=resolved_source_sha,
+                release_tag=release_tag,
+                tag_object_sha=tag_object_sha,
             )
             return
         write_result(
             True,
-            "Release source verified as administrator-applied translation from "
+            "Release source verified as a single-commit administrator translation from "
             f"permission-confirmed issue #{issue_number}.",
+            source_sha=resolved_source_sha,
+            release_tag=release_tag,
+            tag_object_sha=tag_object_sha,
         )
         return
 
     write_result(
         False,
-        "Release skipped: this commit lacks a successful required validate check "
-        "and either an eligible administrator-authored merge or current @PiesP "
-        "approval on a permission-confirmed PR, or a valid administrator-applied "
-        "issue update.",
+        "Release rejected: the source must be a rights-confirmed PR merged by @PiesP "
+        "with a successful `validate` check, or a single-parent CSV-only issue commit "
+        "with a rights-confirmed issue and successful `validate` check.",
+        source_sha=resolved_source_sha,
+        release_tag=release_tag,
+        tag_object_sha=tag_object_sha,
     )
 
 

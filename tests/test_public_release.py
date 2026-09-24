@@ -443,7 +443,8 @@ class ReleasePackagingTests(unittest.TestCase):
             self.root,
             "abc123",
             first,
-            self.plugin_inputs,
+            release_tag="peglin-ko-v1.0.0-rc.1",
+            plugin_source_inputs=self.plugin_inputs,
         )
         build_release_candidate(
             self.root / "translation" / "terms",
@@ -451,14 +452,22 @@ class ReleasePackagingTests(unittest.TestCase):
             self.root,
             "abc123",
             second,
-            self.plugin_inputs,
+            release_tag="peglin-ko-v1.0.0-rc.1",
+            plugin_source_inputs=self.plugin_inputs,
         )
         first_files = {path.name: path.read_bytes() for path in first.iterdir()}
         second_files = {path.name: path.read_bytes() for path in second.iterdir()}
         self.assertEqual(first_files, second_files)
         manifest = json.loads(first_files["release-manifest.json"])
+        self.assertEqual(2, manifest["schemaVersion"])
         self.assertEqual("abc123", manifest["sourceRevision"])
+        self.assertEqual("peglin-ko-v1.0.0-rc.1", manifest["releaseTag"])
+        self.assertTrue(manifest["prerelease"])
         self.assertEqual("draft", manifest["status"])
+        self.assertIn(
+            "peglin-ko-v1.0.0-rc.1",
+            first_files["release-notes.md"].decode("utf-8"),
+        )
         self.assertEqual(
             hashlib.sha256(first_files["LICENSE"]).hexdigest(),
             manifest["artifacts"]["LICENSE"],
@@ -526,7 +535,8 @@ class ReleasePackagingTests(unittest.TestCase):
                 self.root,
                 "abc123",
                 self.root / "release",
-                self.plugin_inputs,
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
             )
 
     def test_release_rejects_tracked_plugin_drift(self) -> None:
@@ -540,7 +550,8 @@ class ReleasePackagingTests(unittest.TestCase):
                 self.root,
                 "abc123",
                 self.root / "release",
-                self.plugin_inputs,
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
             )
 
     def test_repository_source_lock_contains_only_safe_term_metadata(self) -> None:

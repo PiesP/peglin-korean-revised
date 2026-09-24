@@ -2,20 +2,8 @@ name: Release Korean translation patch
 
 on:
   push:
-    branches: [master]
-    paths:
-      - "translation/terms/**"
-      - "translation/source-lock.json"
-      - "translation/glossary.csv"
-      - "runtime/PeglinKoreanRevised.dll"
-      - "plugin/**"
-      - "src/peglin_l10n/**"
-      - "LICENSE"
-      - "TRANSLATION-NOTICE.txt"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/scripts/verify_release_source.py"
-      - ".github/workflows/release-translation.yml"
+    tags:
+      - "peglin-ko-v*"
 
 permissions:
   checks: read
@@ -24,7 +12,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: translation-release-${{ github.sha }}
+  group: translation-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -33,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       eligible: ${{ steps.verify.outputs.eligible }}
+      source_sha: ${{ steps.verify.outputs.source_sha }}
+      release_tag: ${{ steps.verify.outputs.release_tag }}
+      tag_object_sha: ${{ steps.verify.outputs.tag_object_sha }}
     steps:
       - name: Check out the source commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -51,11 +42,15 @@ jobs:
           SOURCE_REF: ${{ github.ref }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTOR: ${{ github.actor }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          EVENT_PATH: ${{ github.event_path }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           python3 .github/scripts/verify_release_source.py
+      - name: Require an eligible tagged source
+        if: steps.verify.outputs.eligible != 'true'
+        run: |
+          echo "The version tag does not point to an eligible release source." >&2
+          exit 1
 
   build:
     name: Build patch from eligible source
@@ -69,7 +64,7 @@ jobs:
       - name: Check out verified commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.verify-release-source.outputs.source_sha }}
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -90,16 +85,18 @@ jobs:
         run: uv run --locked peglin-l10n lint-overrides
       - name: Build release files
         env:
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.verify-release-source.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.verify-release-source.outputs.release_tag }}
           OUTPUT_DIR: ${{ runner.temp }}/peglin-release
         run: >-
           uv run --locked peglin-l10n build-release-candidate
           --source-revision "$SOURCE_SHA"
+          --release-tag "$RELEASE_TAG"
           --output-dir "$OUTPUT_DIR"
       - name: Upload release files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: peglin-translation-release-${{ github.sha }}
+          name: peglin-translation-release-${{ needs.verify-release-source.outputs.release_tag }}
           path: ${{ runner.temp }}/peglin-release/*
           if-no-files-found: error
           retention-days: 1
@@ -116,12 +113,14 @@ jobs:
       - name: Download files built by this workflow
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: peglin-translation-release-${{ github.sha }}
+          name: peglin-translation-release-${{ needs.verify-release-source.outputs.release_tag }}
           path: ${{ runner.temp }}/peglin-release
       - name: Verify provenance and checksums
         id: verify
         env:
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.verify-release-source.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.verify-release-source.outputs.release_tag }}
+          TAG_OBJECT_SHA: ${{ needs.verify-release-source.outputs.tag_object_sha }}
           RELEASE_DIR: ${{ runner.temp }}/peglin-release
         run: |
           set -euo pipefail
@@ -135,8 +134,21 @@ jobs:
 
           root = Path(os.environ["RELEASE_DIR"])
           source_sha = os.environ["SOURCE_SHA"]
+          release_tag = os.environ["RELEASE_TAG"]
+          prerelease = re.fullmatch(
+              r"peglin-ko-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-rc\.[1-9][0-9]*",
+              release_tag,
+          ) is not None
           if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
               raise SystemExit("The source commit is not a full Git SHA.")
+          if not (
+              re.fullmatch(
+                  r"peglin-ko-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)",
+                  release_tag,
+              )
+              or prerelease
+          ):
+              raise SystemExit("The release tag does not use the reserved version format.")
 
           required = {
               "release-manifest.json",
@@ -152,15 +164,21 @@ jobs:
           if not isinstance(manifest, dict):
               raise SystemExit("The release manifest root is invalid.")
           if (
-              manifest.get("schemaVersion") != 1
+              manifest.get("schemaVersion") != 2
               or manifest.get("kind") != "peglin-korean-release-provenance"
           ):
               raise SystemExit("The release manifest kind is invalid.")
           if manifest.get("sourceRevision") != source_sha:
               raise SystemExit("The release manifest does not match the verified source commit.")
+          if manifest.get("releaseTag") != release_tag:
+              raise SystemExit("The release manifest does not match the administrator-selected tag.")
           status = manifest.get("status")
           if status not in {"draft", "approved"}:
               raise SystemExit("The translation status is invalid.")
+          if manifest.get("prerelease") is not prerelease:
+              raise SystemExit("The release manifest prerelease flag disagrees with its version tag.")
+          if (status == "draft") != prerelease:
+              raise SystemExit("Draft translations require an RC tag; approved translations require a stable tag.")
 
           checksums_path = root / "SHA256SUMS.txt"
           checksum_digests = {}
@@ -295,21 +313,27 @@ jobs:
           ):
               raise SystemExit("Runtime metadata disagrees across release files.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"prerelease={'true' if status == 'draft' else 'false'}\n")
-              output.write(f"tag=peglin-ko-{source_sha[:12]}\n")
+              output.write(f"prerelease={'true' if prerelease else 'false'}\n")
+              output.write(f"tag={release_tag}\n")
               output.write(f"overlay={overlay_files[0]}\n")
           PY
       - name: Create release for the verified commit
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.verify-release-source.outputs.source_sha }}
           RELEASE_DIR: ${{ runner.temp }}/peglin-release
           RELEASE_TAG: ${{ steps.verify.outputs.tag }}
+          TAG_OBJECT_SHA: ${{ needs.verify-release-source.outputs.tag_object_sha }}
           PRERELEASE: ${{ steps.verify.outputs.prerelease }}
           OVERLAY_NAME: ${{ steps.verify.outputs.overlay }}
         run: |
           set -euo pipefail
-          args=(--target "$SOURCE_SHA" --title "Peglin Korean Revised ${SOURCE_SHA:0:12}" --notes-file "$RELEASE_DIR/release-notes.md")
+          current_tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha')
+          if [[ "$current_tag_object" != "$TAG_OBJECT_SHA" ]]; then
+            echo "The protected release tag changed after source verification." >&2
+            exit 1
+          fi
+          args=(--verify-tag --target "$SOURCE_SHA" --title "Peglin Korean Revised ${RELEASE_TAG#peglin-ko-}" --notes-file "$RELEASE_DIR/release-notes.md")
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
