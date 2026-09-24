@@ -9,6 +9,7 @@ import re
 import subprocess
 import tempfile
 import zipfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +18,13 @@ _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _PLUGIN_GUID = "piesp.peglin.koreanrevised"
 _PLUGIN_VERSION = "0.1.2"
+_PLUGIN_ARCHIVE_PATH = "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"
 _PEGLIN_BEPINEX_PACK_VERSION = "5.4.2100"
 _BEPINEX_VERSION = "5.4.21"
+_ZIP_FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+_ZIP_TIMESTAMP_EPOCH = datetime(1980, 1, 1)
+_ZIP_TIMESTAMP_END = datetime(2108, 1, 1)
+_ZIP_TIMESTAMP_RESOLUTION_SECONDS = 2
 
 
 def _run_dotnet(command: list[str], project_dir: Path) -> None:
@@ -103,6 +109,34 @@ def _candidate_readme(
     )
 
 
+def _zip_timestamp_for_contents(
+    contents: bytes,
+) -> tuple[int, int, int, int, int, int]:
+    """Return a reproducible DOS-compatible timestamp derived from file content."""
+
+    # ZIP DOS timestamps have two-second resolution. Reserve the epoch used by
+    # previous packages, then derive this file's time from its content.
+    timestamp_slots = int(
+        (_ZIP_TIMESTAMP_END - _ZIP_TIMESTAMP_EPOCH).total_seconds()
+        // _ZIP_TIMESTAMP_RESOLUTION_SECONDS
+    )
+    digest = hashlib.sha256(contents).digest()
+    timestamp_slot = (
+        int.from_bytes(digest, byteorder="big") % (timestamp_slots - 1)
+    ) + 1
+    timestamp = _ZIP_TIMESTAMP_EPOCH + timedelta(
+        seconds=timestamp_slot * _ZIP_TIMESTAMP_RESOLUTION_SECONDS
+    )
+    return (
+        timestamp.year,
+        timestamp.month,
+        timestamp.day,
+        timestamp.hour,
+        timestamp.minute,
+        timestamp.second,
+    )
+
+
 def _write_zip_atomically(path: Path, files: dict[str, bytes]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
@@ -120,7 +154,12 @@ def _write_zip_atomically(path: Path, files: dict[str, bytes]) -> None:
             compresslevel=9,
         ) as archive:
             for name, contents in sorted(files.items()):
-                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                date_time = (
+                    _zip_timestamp_for_contents(contents)
+                    if name == _PLUGIN_ARCHIVE_PATH
+                    else _ZIP_FIXED_TIMESTAMP
+                )
+                info = zipfile.ZipInfo(name, date_time=date_time)
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o100644 << 16
                 archive.writestr(
@@ -270,7 +309,7 @@ def create_client_candidate(
             "assemblyCSharpSha256": assembly_sha256,
         },
         "files": {
-            "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll": plugin_sha256,
+            _PLUGIN_ARCHIVE_PATH: plugin_sha256,
             "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_sha256,
         },
     }
@@ -288,7 +327,7 @@ def create_client_candidate(
     _write_zip_atomically(
         archive_path,
         {
-            "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll": plugin_bytes,
+            _PLUGIN_ARCHIVE_PATH: plugin_bytes,
             "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_bytes,
             "BepInEx/plugins/PeglinKoreanRevised/manifest.json": manifest_bytes,
             "README.md": readme_bytes,
