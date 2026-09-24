@@ -1,4 +1,12 @@
 version: 2
+registries:
+  nuget-org:
+    type: "nuget-feed"
+    url: "https://api.nuget.org/v3/index.json"
+  bepinex:
+    type: "nuget-feed"
+    url: "https://nuget.bepinex.dev/v3/index.json"
+
 updates:
   - package-ecosystem: "uv"
     directory: "/"
@@ -22,6 +30,9 @@ updates:
 
   - package-ecosystem: "nuget"
     directory: "/plugin"
+    registries:
+      - "nuget-org"
+      - "bepinex"
     schedule:
       interval: "weekly"
       day: "monday"
