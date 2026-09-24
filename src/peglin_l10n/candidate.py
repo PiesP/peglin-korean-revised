@@ -106,6 +106,10 @@ def _candidate_readme(
         f"- resources.assets SHA-256: {source['assetSha256']}\n"
         f"- Assembly-CSharp.dll SHA-256: {assembly_sha256}\n"
         f"- Plugin SHA-256: {plugin_hash}\n\n"
+        "## License and translation notice\n\n"
+        "The project code and tools are provided under the MIT License in "
+        "LICENSE. Translation data is excluded from that license; see "
+        "TRANSLATION-NOTICE.txt.\n\n"
         "At startup the plugin verifies the installed resources.assets hash "
         "and the Assembly-CSharp.dll hash synchronously before waiting for "
         "localization data. It refuses to apply "
@@ -212,12 +216,18 @@ def _package_candidate(
     candidate_dir: Path,
     plugin_dll: Path,
     assembly_sha256: str,
+    project_root: Path,
 ) -> Path:
     overlay = _read_overlay(overlay_path)
     if not plugin_dll.is_file():
         raise ValueError(f"Plugin DLL does not exist: {plugin_dll}")
     if _SHA256_PATTERN.fullmatch(assembly_sha256) is None:
         raise ValueError("Assembly-CSharp.dll hash must be a lowercase SHA-256 digest.")
+    try:
+        license_bytes = (project_root / "LICENSE").read_bytes()
+        translation_notice_bytes = (project_root / "TRANSLATION-NOTICE.txt").read_bytes()
+    except OSError as exc:
+        raise ValueError(f"Could not read distribution license notices: {exc}") from exc
 
     source = overlay["source"]
     terms = overlay["terms"]
@@ -269,6 +279,8 @@ def _package_candidate(
             "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_bytes,
             "BepInEx/plugins/PeglinKoreanRevised/manifest.json": manifest_bytes,
             "README.md": readme_bytes,
+            "LICENSE": license_bytes,
+            "TRANSLATION-NOTICE.txt": translation_notice_bytes,
         },
     )
     return archive_path
@@ -279,6 +291,7 @@ def create_prebuilt_client_candidate(
     candidate_dir: Path,
     plugin_dll: Path,
     assembly_sha256: str,
+    project_root: Path,
 ) -> Path:
     """Package a verified tracked plugin without an installed Peglin copy."""
 
@@ -287,6 +300,7 @@ def create_prebuilt_client_candidate(
         candidate_dir.expanduser().resolve(),
         plugin_dll.expanduser().resolve(),
         assembly_sha256,
+        project_root.expanduser().resolve(),
     )
 
 
@@ -296,6 +310,7 @@ def create_client_candidate(
     candidate_dir: Path,
     plugin_project: Path,
     dotnet: str = "dotnet",
+    project_root: Path | None = None,
 ) -> Path:
     """Compile the plugin against the installed game and package an install ZIP."""
 
@@ -303,6 +318,11 @@ def create_client_candidate(
     game_root = game_root.expanduser().resolve()
     candidate_dir = candidate_dir.expanduser().resolve()
     plugin_project = plugin_project.expanduser().resolve()
+    project_root = (
+        project_root.expanduser().resolve()
+        if project_root is not None
+        else Path(__file__).resolve().parents[2]
+    )
     managed_dir = game_root / "Peglin_Data" / "Managed"
     game_asset = game_root / "Peglin_Data" / "resources.assets"
     game_assembly = managed_dir / "Assembly-CSharp.dll"
@@ -391,4 +411,5 @@ def create_client_candidate(
         candidate_dir,
         plugin_dll,
         installed_assembly_sha256,
+        project_root,
     )

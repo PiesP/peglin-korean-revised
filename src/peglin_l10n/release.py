@@ -96,7 +96,15 @@ def build_release_candidate(
         output_dir,
         plugin_path,
         source_lock["assemblyCSharpSha256"],
+        project_root,
     )
+
+    license_path = output_dir / "LICENSE"
+    license_bytes = (project_root / "LICENSE").read_bytes()
+    _write_bytes_atomically(license_path, license_bytes)
+    translation_notice_path = output_dir / "TRANSLATION-NOTICE.txt"
+    translation_notice_bytes = (project_root / "TRANSLATION-NOTICE.txt").read_bytes()
+    _write_bytes_atomically(translation_notice_path, translation_notice_bytes)
 
     notes_path = output_dir / "release-notes.md"
     notes_bytes = _release_notes(source_revision, source_lock, overlay["status"])
@@ -105,6 +113,8 @@ def build_release_candidate(
     artifacts = {
         overlay_path.name: sha256_file(overlay_path),
         candidate_path.name: sha256_file(candidate_path),
+        license_path.name: hashlib.sha256(license_bytes).hexdigest(),
+        translation_notice_path.name: hashlib.sha256(translation_notice_bytes).hexdigest(),
         notes_path.name: hashlib.sha256(notes_bytes).hexdigest(),
     }
     manifest = {
@@ -137,6 +147,8 @@ def build_release_candidate(
     return {
         "overlay": overlay_path,
         "candidate": candidate_path,
+        "license": license_path,
+        "translationNotice": translation_notice_path,
         "releaseNotes": notes_path,
         "releaseManifest": manifest_path,
         "checksums": checksums_path,

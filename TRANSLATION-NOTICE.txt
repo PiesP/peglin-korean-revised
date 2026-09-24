@@ -1,0 +1,42 @@
+Peglin Korean Revised translation data notice
+
+The MIT License in LICENSE applies only to original project code, tools, and
+documentation. It does not apply to translation data in translation/ or to
+translation data carried in generated overlays and patch archives. The
+exclusion does not remove MIT coverage from original code or documentation
+included in those archives.
+
+The translation data is based on Peglin and may contain material subject to
+copyright or other rights held by the Peglin rights holders. This notice does
+not grant rights in Peglin, its source text, official localizations, or other
+game content. Contributions may be used only under the permissions described
+in CONTRIBUTING.ko.md and only to the extent the contributor is authorized to
+grant them. Those permissions do not replace permission from Peglin rights
+holders where it is required.
+The contribution terms are published at
+https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md.
+The contribution terms are published at
+https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md.
+
+Peglin Korean Revised is an unofficial community project and is not affiliated
+with or endorsed by Red Nexus Games, IndieArk, or BlitWorks Games.
+
+번역 자료 고지
+
+LICENSE의 MIT 라이선스는 프로젝트가 직접 작성한 코드, 도구와 안내 문서에만
+적용됩니다. translation/에 있는 번역 자료와 생성된 오버레이 또는 패치 압축 파일에
+담긴 번역 자료에는 적용되지 않습니다. 압축 파일에 함께 포함된 프로젝트 코드와
+문서는 계속 MIT 라이선스의 적용을 받습니다.
+
+번역 자료는 Peglin을 바탕으로 작성되었으며, Peglin 권리자의 저작권 또는 다른
+권리가 적용될 수 있습니다. 이 고지는 Peglin, 원문, 공식 번역 또는 그 밖의 게임
+콘텐츠에 대한 권리를 부여하지 않습니다. 기여 문구는 CONTRIBUTING.ko.md에
+정의된 허락 아래에서만, 제출자가 허락할 권한이 있는 범위에서 사용할 수 있습니다.
+그 허락은 필요한 경우 Peglin 권리자의 허락을 대신하지 않습니다.
+기여 조건은 다음 문서에서 확인할 수 있습니다.
+https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md
+기여 조건은 https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md 에서
+확인할 수 있습니다.
+
+Peglin Korean Revised는 Red Nexus Games, IndieArk 또는 BlitWorks Games와
+제휴하거나 이들의 승인을 받은 프로젝트가 아닙니다.

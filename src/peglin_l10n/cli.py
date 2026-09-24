@@ -347,6 +347,7 @@ def _run_build_candidate(args: argparse.Namespace) -> int:
             args.candidate_dir,
             args.plugin_project,
             args.dotnet,
+            project_root=PROJECT_ROOT,
         )
     except (ExtractionError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Client candidate generation stopped safely: {exc}", file=sys.stderr)

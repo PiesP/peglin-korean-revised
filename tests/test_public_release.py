@@ -126,6 +126,10 @@ class ReleasePackagingTests(unittest.TestCase):
         (self.root / "translation" / "terms").mkdir(parents=True)
         (self.root / "runtime").mkdir()
         (self.root / "plugin").mkdir()
+        (self.root / "LICENSE").write_text("MIT License\n", encoding="utf-8")
+        (self.root / "TRANSLATION-NOTICE.txt").write_text(
+            "Translation data notice\n", encoding="utf-8"
+        )
         self.plugin_inputs = (
             "plugin/NuGet.Config",
             "plugin/PeglinKoreanRevised.csproj",
@@ -228,12 +232,25 @@ class ReleasePackagingTests(unittest.TestCase):
         manifest = json.loads(first_files["release-manifest.json"])
         self.assertEqual("abc123", manifest["sourceRevision"])
         self.assertEqual("draft", manifest["status"])
+        self.assertEqual(
+            hashlib.sha256(first_files["LICENSE"]).hexdigest(),
+            manifest["artifacts"]["LICENSE"],
+        )
+        self.assertEqual(
+            hashlib.sha256(first_files["TRANSLATION-NOTICE.txt"]).hexdigest(),
+            manifest["artifacts"]["TRANSLATION-NOTICE.txt"],
+        )
         candidate_name = next(name for name in first_files if name.endswith(".zip"))
         with zipfile.ZipFile(first / candidate_name) as archive:
             package_manifest = json.loads(
                 archive.read(
                     "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
                 )
+            )
+            self.assertEqual(first_files["LICENSE"], archive.read("LICENSE"))
+            self.assertEqual(
+                first_files["TRANSLATION-NOTICE.txt"],
+                archive.read("TRANSLATION-NOTICE.txt"),
             )
         self.assertEqual(
             manifest["runtime"]["pluginVersion"],
