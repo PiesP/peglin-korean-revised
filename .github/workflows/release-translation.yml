@@ -18,6 +18,7 @@ on:
       - ".github/workflows/release-translation.yml"
 
 permissions:
+  checks: read
   contents: read
   issues: read
   pull-requests: read
@@ -28,7 +29,7 @@ concurrency:
 
 jobs:
   verify-release-source:
-    name: Verify approved contribution source
+    name: Verify eligible contribution source
     runs-on: ubuntu-latest
     outputs:
       eligible: ${{ steps.verify.outputs.eligible }}
@@ -42,7 +43,7 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
-      - name: Verify reviewed pull request or administrator issue update
+      - name: Verify eligible pull request or administrator issue update
         id: verify
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,7 +58,7 @@ jobs:
           python3 .github/scripts/verify_release_source.py
 
   build:
-    name: Build patch from reviewed source
+    name: Build patch from eligible source
     needs: verify-release-source
     if: needs.verify-release-source.outputs.eligible == 'true'
     runs-on: ubuntu-latest
