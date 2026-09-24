@@ -9,11 +9,14 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from peglin_l10n.extract import CSV_FIELDS
+from peglin_l10n.fingerprints import source_fingerprint
 from peglin_l10n.release import build_release_candidate
 from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
     read_translation_directory,
+    validate,
     validate_locked_translations,
 )
 
@@ -117,6 +120,79 @@ class TranslationDirectoryTests(unittest.TestCase):
             },
             {issue.code for issue in issues},
         )
+
+    def test_glossary_does_not_split_hyphenated_game_names(self) -> None:
+        terms_path = self.root / "source.csv"
+        source_rows = [
+            {
+                "Term": "Orbs/bomborb_name",
+                "Category": "Orbs",
+                "English": "Bob-Orb",
+                "DevNotes": "",
+                "I2Description": "",
+                "OfficialKorean": "터지구",
+                "RevisedKorean": "터지구",
+                "Status": "unreviewed",
+                "Comment": "",
+            },
+            {
+                "Term": "Orbs/portal_name",
+                "Category": "Orbs",
+                "English": "Jack-Orb-Lantern",
+                "DevNotes": "",
+                "I2Description": "",
+                "OfficialKorean": "할로윈을 즐기라구",
+                "RevisedKorean": "할로윈을 즐기라구",
+                "Status": "unreviewed",
+                "Comment": "",
+            },
+            {
+                "Term": "Orbs/orb_bonus_desc",
+                "Category": "Orbs",
+                "English": "Gain an Orb",
+                "DevNotes": "",
+                "I2Description": "",
+                "OfficialKorean": "구슬을 얻습니다.",
+                "RevisedKorean": "획득합니다.",
+                "Status": "unreviewed",
+                "Comment": "",
+            },
+        ]
+        with terms_path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(source_rows)
+
+        glossary_path = self.root / "glossary.csv"
+        with glossary_path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(
+                stream,
+                fieldnames=("Term", "PreferredKorean"),
+                lineterminator="\n",
+            )
+            writer.writeheader()
+            writer.writerow({"Term": "orb", "PreferredKorean": "구슬"})
+
+        overrides_path = self.root / "overrides.json"
+        overrides_path.write_text(
+            json.dumps(
+                {
+                    "Orbs/bomborb_name": {
+                        "translation": "터지구",
+                        "status": "draft",
+                        "sourceFingerprint": source_fingerprint(source_rows[0]),
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        _, issues = validate(terms_path, glossary_path, overrides_path)
+        glossary_mismatches = [
+            issue.term for issue in issues if issue.code == "GLOSSARY_MISMATCH"
+        ]
+        self.assertEqual(["Orbs/orb_bonus_desc"], glossary_mismatches)
 
 
 class ReleasePackagingTests(unittest.TestCase):
