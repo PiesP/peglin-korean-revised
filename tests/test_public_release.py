@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import csv
+import copy
 import hashlib
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from peglin_l10n.release import build_release_candidate
-from peglin_l10n.source_lock import plugin_source_inputs_sha256
+from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
     read_translation_directory,
@@ -130,8 +132,20 @@ class ReleasePackagingTests(unittest.TestCase):
             "plugin/Plugin.cs",
             "plugin/packages.lock.json",
         )
-        for path in self.plugin_inputs:
-            (self.root / path).write_text(path + "\n", encoding="utf-8")
+        plugin_sources = {
+            "plugin/NuGet.Config": "<configuration />\n",
+            "plugin/PeglinKoreanRevised.csproj": (
+                "<Project><PropertyGroup><Version>0.1.2</Version>"
+                "</PropertyGroup></Project>\n"
+            ),
+            "plugin/Plugin.cs": (
+                'namespace Test { [BepInPlugin("id", "name", "0.1.2")] '
+                "public class Plugin {} }\n"
+            ),
+            "plugin/packages.lock.json": "{}\n",
+        }
+        for path, contents in plugin_sources.items():
+            (self.root / path).write_text(contents, encoding="utf-8")
         plugin = self.root / "runtime" / "PeglinKoreanRevised.dll"
         plugin.write_bytes(b"test-plugin")
         terms = self.root / "translation" / "terms" / "general.csv"
@@ -149,7 +163,7 @@ class ReleasePackagingTests(unittest.TestCase):
                     "Comment": "",
                 }
             )
-        lock = {
+        self.lock = {
             "schemaVersion": 1,
             "kind": "peglin-korean-source-lock",
             "game": "Peglin",
@@ -179,8 +193,11 @@ class ReleasePackagingTests(unittest.TestCase):
             },
         }
         self.lock_path = self.root / "translation" / "source-lock.json"
+        self._write_lock()
+
+    def _write_lock(self) -> None:
         self.lock_path.write_text(
-            json.dumps(lock, ensure_ascii=False) + "\n", encoding="utf-8"
+            json.dumps(self.lock, ensure_ascii=False) + "\n", encoding="utf-8"
         )
 
     def tearDown(self) -> None:
@@ -211,6 +228,51 @@ class ReleasePackagingTests(unittest.TestCase):
         manifest = json.loads(first_files["release-manifest.json"])
         self.assertEqual("abc123", manifest["sourceRevision"])
         self.assertEqual("draft", manifest["status"])
+        candidate_name = next(name for name in first_files if name.endswith(".zip"))
+        with zipfile.ZipFile(first / candidate_name) as archive:
+            package_manifest = json.loads(
+                archive.read(
+                    "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+                )
+            )
+        self.assertEqual(
+            manifest["runtime"]["pluginVersion"],
+            package_manifest["runtime"]["pluginVersion"],
+        )
+
+    def test_source_lock_rejects_unregistered_root_field(self) -> None:
+        self.lock["sourceTextDump"] = "proprietary source text"
+        self._write_lock()
+        with self.assertRaisesRegex(ValueError, "root fields"):
+            read_source_lock(self.lock_path)
+
+    def test_source_lock_rejects_category_and_file_mismatch(self) -> None:
+        for field, value, expected_message in (
+            ("category", "Menu", "category"),
+            ("file", "menu.csv", "CSV file"),
+        ):
+            with self.subTest(field=field):
+                changed = copy.deepcopy(self.lock)
+                changed["terms"]["Damage"][field] = value
+                self.lock_path.write_text(
+                    json.dumps(changed, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(ValueError, expected_message):
+                    read_source_lock(self.lock_path)
+
+    def test_release_rejects_plugin_version_mismatch(self) -> None:
+        self.lock["runtime"]["pluginVersion"] = "0.1.3"
+        self._write_lock()
+        with self.assertRaisesRegex(ValueError, "pluginVersion"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                "abc123",
+                self.root / "release",
+                self.plugin_inputs,
+            )
 
     def test_release_rejects_tracked_plugin_drift(self) -> None:
         (self.root / "runtime" / "PeglinKoreanRevised.dll").write_bytes(

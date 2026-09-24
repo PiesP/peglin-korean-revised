@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from .candidate import create_prebuilt_client_candidate
+from .candidate import PLUGIN_VERSION, create_prebuilt_client_candidate
 from .patching import create_locked_overlay_patch
 from .source_lock import (
     DEFAULT_PLUGIN_SOURCE_INPUTS,
@@ -82,7 +82,10 @@ def build_release_candidate(
 
     source_lock = read_source_lock(source_lock_path)
     plugin_path = validate_runtime_provenance(
-        project_root, source_lock, plugin_source_inputs
+        project_root,
+        source_lock,
+        plugin_source_inputs,
+        package_version=PLUGIN_VERSION,
     )
     build_id = source_lock["steamBuildId"]
     asset_hash = source_lock["resourcesAssetsSha256"]
