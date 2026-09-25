@@ -52,6 +52,17 @@ def _release_notes(
     source_lock: dict[str, Any],
     status: str,
 ) -> bytes:
+    review_note = (
+        "이 공개 시험판에는 실제 플레이로 확인되지 않은 번역 문구나 게임 상황이 포함될 수 "
+        "있습니다. 모든 화면의 번역을 검수했다고 주장하지 않습니다. 이후 개선은 실제 "
+        "플레이에서 발견한 사용자 제보를 바탕으로 진행합니다.\n\n"
+        if status == "draft"
+        else "번역 데이터는 승인 상태입니다. 이 상태가 모든 화면을 대상으로 한 전체 플레이 검수를 "
+        "뜻하지는 않습니다.\n\n"
+    )
+    release_url = (
+        "https://github.com/PiesP/peglin-korean-revised/releases/tag/" + release_tag
+    )
     return (
         f"# Peglin Korean Revised {release_tag.removeprefix('peglin-ko-')}\n\n"
         f"- 릴리스 태그: `{release_tag}`\n"
@@ -60,7 +71,18 @@ def _release_notes(
         f"- 대상 Steam 빌드: `{source_lock['steamBuildId']}`\n"
         f"- 소스 리비전: `{source_revision}`\n\n"
         "이 패치는 게임 파일을 직접 수정하지 않으며, 대상 게임 파일의 해시가 "
-        "일치할 때만 메모리에서 한국어 번역을 적용합니다.\n"
+        "일치할 때만 메모리에서 한국어 번역을 적용합니다.\n\n"
+        "## 공개 범위\n\n"
+        f"{review_note}"
+        "## 설치와 제보\n\n"
+        f"설치용 파일은 이 릴리스의 [자산 목록]({release_url})에서 `PeglinKoreanRevised-*.zip`을 "
+        "받으세요. GitHub 자동 생성 소스 코드 ZIP과 JSON overlay는 일반 설치용이 아닙니다. "
+        f"[설치 안내](https://github.com/PiesP/peglin-korean-revised/blob/{release_tag}/README.md)에 "
+        "설치, 업데이트, 제거 방법이 있습니다.\n\n"
+        "번역 문제는 [번역 제안 양식](https://github.com/PiesP/peglin-korean-revised/"
+        "issues/new?template=translation-suggestion.yml)으로 알려 주세요. 수정안을 몰라도 "
+        "제보할 수 있습니다. 설치나 실행 문제는 [패치 문제 제보](https://github.com/PiesP/"
+        "peglin-korean-revised/issues/new?template=patch-problem.yml)를 이용해 주세요.\n"
     ).encode("utf-8")
 
 

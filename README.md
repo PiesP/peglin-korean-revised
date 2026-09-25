@@ -4,6 +4,10 @@ Peglin의 한국어 문장을 더 자연스럽고 이해하기 쉽게 다듬어 
 비공식 패치입니다. BepInEx 플러그인으로 작동하며 게임 파일을 직접 바꾸지 않습니다.
 이 프로젝트는 개발 과정에서 AI 도구의 도움을 받았습니다.
 
+현재 공개본은 번역 검수 상태가 `draft`인 시험판입니다. 일부 문구와 게임 상황은 실제
+플레이로 확인되지 않았을 수 있습니다. 모든 화면의 번역을 검수했다고 주장하지 않으며,
+이후 개선은 실제 플레이에서 발견한 사용자 제보를 바탕으로 진행합니다.
+
 ## 패치 받기
 
 [릴리스 목록](https://github.com/PiesP/peglin-korean-revised/releases)에서 최신
@@ -15,6 +19,11 @@ Peglin의 한국어 문장을 더 자연스럽고 이해하기 쉽게 다듬어 
 
 - Windows용 Peglin
 - [Peglin용 BepInEx 팩](https://thunderstore.io/c/peglin/p/BepInEx/BepInExPack_Peglin/)
+
+지원 대상은 [`translation/source-lock.json`](translation/source-lock.json)에 기록된
+Steam 빌드와 게임 파일 해시가 일치하는 Windows용 Peglin입니다. 플러그인은 대상 파일의
+해시가 일치할 때만 번역을 적용합니다. 게임 업데이트 뒤 번역이 적용되지 않으면 새
+패치가 나올 때까지 기다려 주세요.
 
 아래 설치 순서는 BepInEx를 게임 폴더에 직접 설치하는 방법입니다. 게임 폴더는
 `Peglin.exe`가 있는 곳입니다. Steam 라이브러리에서 Peglin을 선택하고 **관리 → 로컬
@@ -89,7 +98,8 @@ Peglin을 종료한 다음 게임 폴더(또는 모드 매니저 프로필)에�
 
 번역 문제는 [번역 수정 제안](https://github.com/PiesP/peglin-korean-revised/issues/new?template=translation-suggestion.yml),
 설치나 실행 문제는 [패치 문제 제보](https://github.com/PiesP/peglin-korean-revised/issues/new?template=patch-problem.yml)로
-알려 주세요. 번역 문구를 직접 수정하려는 분은 [기여 안내](CONTRIBUTING.ko.md)를
+알려 주세요. 수정안을 모르셔도 괜찮습니다. 표시된 문구와 화면 또는 상황을 알려 주면
+제보할 수 있습니다. 번역 문구를 직접 수정하려는 분은 [기여 안내](CONTRIBUTING.ko.md)를
 참고하세요.
 
 ## 라이선스
