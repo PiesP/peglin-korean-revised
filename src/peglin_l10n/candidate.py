@@ -61,7 +61,8 @@ def _sha256_file(path: Path) -> str:
 
 def _candidate_readme(overlay: dict[str, Any]) -> str:
     review_note = (
-        "번역 상태: 초안입니다. 일부 문구는 게임 화면에서 검토되지 않았을 수 있습니다.\n\n"
+        "번역 상태: 초안입니다. 일부 문구와 게임 상황은 실제 플레이로 확인되지 않았을 수 있습니다. "
+        "이후 개선은 실제 플레이에서 발견한 사용자 제보를 바탕으로 진행합니다.\n\n"
         if overlay["status"] == "draft"
         else "번역 문구는 승인 상태입니다. 이 패치 전체가 모든 게임 화면에서 검수되었다는 뜻은 아닙니다.\n\n"
     )
@@ -85,6 +86,10 @@ def _candidate_readme(overlay: dict[str, Any]) -> str:
         "사용한다면 선택한 Peglin 프로필 폴더에 설치하고 게임도 매니저에서 "
         "실행합니다.\n"
         "5. 게임을 실행하고 언어 설정에서 한국어를 선택합니다.\n\n"
+        "## 지원 빌드\n\n"
+        f"지원 대상은 Steam Build ID `{overlay['source']['steamBuildId']}`입니다. 해당 빌드의 "
+        "게임 파일 해시가 일치할 때만 번역을 적용합니다. 다른 빌드에서는 적용되지 않을 수 "
+        "있습니다.\n\n"
         "## 수동 설치 후 폴더 구조\n\n"
         "아래는 주요 경로만 표시한 예시입니다. 게임과 BepInEx 팩의 다른 파일 및 "
         "폴더는 생략했습니다. 패치 ZIP에 들어 있는 안내와 라이선스 파일은 게임 "
@@ -117,6 +122,10 @@ def _candidate_readme(overlay: dict[str, Any]) -> str:
         "patch-problem.yml)를 이용해 주세요.\n\n"
         "## 번역 상태\n\n"
         f"{review_note}"
+        "번역 문제는 [번역 제안 양식](https://github.com/PiesP/peglin-korean-revised/"
+        "issues/new?template=translation-suggestion.yml)으로 알려 주세요. 수정안을 몰라도 "
+        "괜찮습니다. 설치나 실행 문제는 [패치 문제 제보](https://github.com/PiesP/"
+        "peglin-korean-revised/issues/new?template=patch-problem.yml)를 이용해 주세요.\n\n"
         "## 라이선스\n\n"
         "프로젝트 코드와 도구에는 MIT 라이선스가 적용됩니다. 번역 자료는 MIT "
         "범위에 포함되지 않습니다. 함께 제공된 LICENSE와 TRANSLATION-NOTICE.txt를 "

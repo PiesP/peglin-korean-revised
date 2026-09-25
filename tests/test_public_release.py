@@ -545,6 +545,17 @@ class ReleasePackagingTests(unittest.TestCase):
             "peglin-ko-v1.0.0-rc.1",
             first_files["release-notes.md"].decode("utf-8"),
         )
+        release_notes = first_files["release-notes.md"].decode("utf-8")
+        self.assertIn("실제 플레이로 확인되지 않은 번역", release_notes)
+        self.assertIn("대상 Steam 빌드: `123`", release_notes)
+        self.assertIn("issues/new?template=translation-suggestion.yml", release_notes)
+        self.assertIn("issues/new?template=patch-problem.yml", release_notes)
+        self.assertIn("releases/tag/peglin-ko-v1.0.0-rc.1", release_notes)
+        self.assertIn("PeglinKoreanRevised-*.zip", release_notes)
+        self.assertIn(
+            "blob/peglin-ko-v1.0.0-rc.1/README.md",
+            release_notes,
+        )
         self.assertEqual(
             hashlib.sha256(first_files["LICENSE"]).hexdigest(),
             manifest["artifacts"]["LICENSE"],
@@ -574,6 +585,9 @@ class ReleasePackagingTests(unittest.TestCase):
         self.assertIn("├── README.md", package_readme)
         self.assertIn("└── TRANSLATION-NOTICE.txt", package_readme)
         self.assertIn("번역 상태: 초안", package_readme)
+        self.assertIn("Steam Build ID `123`", package_readme)
+        self.assertIn("실제 플레이에서 발견한 사용자 제보", package_readme)
+        self.assertIn("issues/new?template=translation-suggestion.yml", package_readme)
         self.assertIn("AI 도구의 도움", package_readme)
         self.assertNotIn("Assembly-CSharp.dll SHA-256", package_readme)
         self.assertEqual(

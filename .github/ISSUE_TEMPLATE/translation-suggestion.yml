@@ -1,15 +1,33 @@
-name: 번역 수정 제안
-description: 어색하거나 잘못된 한국어 번역을 제안합니다.
+name: 번역 문제 제보 또는 수정 제안
+description: 게임에서 발견한 번역 문제를 제보합니다. 수정안은 선택 사항입니다.
 title: "[번역] "
 body:
   - type: markdown
     attributes:
       value: >-
-        이슈로 번역 문제를 제안할 수 있습니다. 관리자가 제안과 사용 권한을 확인한 뒤
-        번역에 반영할 수 있습니다. 이슈 내용을 자동으로 복사하거나 반영하지는 않습니다.
+        번역 문제만 제보해도 됩니다. 수정안이나 용어 키를 몰라도 괜찮습니다. 직접 작성한
+        번역을 제안하는 경우에만 번역 문구 사용 허락에 동의해 주세요. 권한 확인이 없는
+        제안 문구는 번역에 반영하지 않으며, 이슈 내용은 자동으로 복사되지 않습니다.
+        스크린샷이나 로그에 계정 이름, 개인 정보, 세이브 정보가 보이면 가린 뒤 올려 주세요.
         직접 CSV를 수정해 기여하려면 Pull Request를 제출해 주세요. 자세한 내용은
         [기여 안내](https://github.com/PiesP/peglin-korean-revised/blob/master/CONTRIBUTING.ko.md)를
         참고하세요.
+  - type: input
+    id: patch-release
+    attributes:
+      label: 패치 버전 또는 릴리스 태그
+      description: 설치한 버전을 알면 적어 주세요. 모르면 비워 두어도 됩니다.
+      placeholder: "예: v1.0.0-rc.1"
+    validations:
+      required: false
+  - type: input
+    id: game-build
+    attributes:
+      label: 게임 버전 또는 Steam Build ID
+      description: 확인할 수 있다면 적어 주세요. 모르면 비워 두어도 됩니다.
+      placeholder: "예: 22988052"
+    validations:
+      required: false
   - type: input
     id: term
     attributes:
@@ -21,17 +39,17 @@ body:
   - type: input
     id: current-translation
     attributes:
-      label: 현재 번역
-      description: 게임에 표시된 현재 한국어 문구를 적어 주세요.
+      label: 게임에 표시된 문구
+      description: 문제를 발견한 한국어 문구를 적어 주세요.
     validations:
-      required: false
+      required: true
   - type: textarea
     id: proposed-translation
     attributes:
       label: 제안하는 번역
-      description: 바꾸고 싶은 한국어 문구를 적어 주세요.
+      description: 수정안을 모르면 비워 두어도 됩니다.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: context
     attributes:
@@ -43,18 +61,18 @@ body:
   - type: textarea
     id: rationale
     attributes:
-      label: 변경 이유
-      description: 현재 번역의 문제와 제안 문구가 더 알맞은 이유를 설명해 주세요.
+      label: 문제라고 느낀 점이나 실제 동작
+      description: 문구가 어색하거나 실제 게임 상황과 달랐던 점을 설명해 주세요.
     validations:
       required: true
   - type: checkboxes
     attributes:
       label: 번역 문구 사용 허락 확인
       description: >-
-        본인이 제출 권한을 가진 문구에 대해서만 동의해 주세요. 동의하면 프로젝트와
-        패치 사용자가 해당 문구를 번역 자료의 일부로 복제·수정·배포·사용할 수 있도록
-        전 세계 비독점 무상 이용을 허락합니다. Peglin 게임 콘텐츠의 권리는 포함하지
-        않습니다.
+        제안하는 번역을 직접 작성했거나 제출 권한을 받은 경우에 동의해 주세요. 동의하면
+        프로젝트와 패치 사용자가 해당 문구를 번역 자료의 일부로 복제·수정·배포·사용할 수
+        있도록 전 세계 비독점 무상 이용을 허락합니다. Peglin 게임 콘텐츠의 권리는 포함하지
+        않습니다. 번역을 제안하지 않고 문제만 알리는 경우에는 선택하지 않아도 됩니다.
       options:
         - label: 번역 기여 이용 허락에 동의하며 제출 권한이 있음을 확인합니다.
-          required: true
+          required: false
