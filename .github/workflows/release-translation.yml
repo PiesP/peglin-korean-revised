@@ -337,7 +337,7 @@ jobs:
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
-          gh release create "$RELEASE_TAG" "${args[@]}" \
+          gh release create "$RELEASE_TAG" "${args[@]}" --repo "$GITHUB_REPOSITORY" \
             "$RELEASE_DIR/$OVERLAY_NAME" \
             "$RELEASE_DIR"/*.zip \
             "$RELEASE_DIR/LICENSE" \
