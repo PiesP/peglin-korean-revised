@@ -1,6 +1,7 @@
 name: Validate translations
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
   push:
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -34,8 +35,8 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked
       - name: Compile package
-        run: uv run python -m compileall -q src/peglin_l10n
+        run: uv run --locked python -m compileall -q src/peglin_l10n
       - name: Run package tests
         run: uv run --locked python -m unittest discover -s tests -v
       - name: Validate override metadata
-        run: uv run peglin-l10n lint-overrides
+        run: uv run --locked peglin-l10n lint-overrides
