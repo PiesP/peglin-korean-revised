@@ -16,3 +16,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/peglin_l10n"]
+
+[tool.maintenance]
+python = "3.11"
+uv = "0.9.7"
