@@ -18,19 +18,22 @@ SPEC.loader.exec_module(toolchains)
 
 
 class ToolchainSelectionTests(unittest.TestCase):
-    def test_repository_versions(self) -> None:
-        self.assertEqual(
-            ("3.11", "0.9.7"),
-            toolchains.resolve_toolchains(ROOT / "pyproject.toml"),
-        )
+    def test_reads_changed_versions_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pyproject.toml"
+            path.write_text(
+                '[tool.maintenance]\npython = "3.12"\nuv = "1.2.3"\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(("3.12", "1.2.3"), toolchains.resolve_toolchains(path))
 
     def test_rejects_missing_and_non_numeric_versions(self) -> None:
         invalid_tables = (
-            '[tool.maintenance]\npython = "3.11"\n',
-            '[tool.maintenance]\npython = """3.11\nuv=evil"""\nuv = "0.9.7"\n',
-            '[tool.maintenance]\npython = "3.11.0"\nuv = "0.9.7"\n',
-            '[tool.maintenance]\npython = "3.11"\nuv = "0.9.7-beta"\n',
-            '[tool.maintenance]\npython = 3.11\nuv = "0.9.7"\n',
+            '[tool.maintenance]\npython = "3.12"\n',
+            '[tool.maintenance]\npython = """3.12\nuv=evil"""\nuv = "1.2.3"\n',
+            '[tool.maintenance]\npython = "3.12.0"\nuv = "1.2.3"\n',
+            '[tool.maintenance]\npython = "3.12"\nuv = "1.2.3-beta"\n',
+            '[tool.maintenance]\npython = 3.12\nuv = "1.2.3"\n',
         )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "pyproject.toml"
@@ -42,14 +45,37 @@ class ToolchainSelectionTests(unittest.TestCase):
 
     def test_writes_validated_action_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "github-output"
+            root = Path(directory)
+            (root / "pyproject.toml").write_text(
+                '[tool.maintenance]\npython = "3.12"\nuv = "1.2.3"\n',
+                encoding="utf-8",
+            )
+            output = root / "github-output"
             output.write_text("prior=value\n", encoding="utf-8")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}), patch.object(
+                toolchains, "PROJECT_ROOT", root
+            ):
                 toolchains.main()
             self.assertEqual(
-                "prior=value\npython=3.11\nuv=0.9.7\n",
+                "prior=value\npython=3.12\nuv=1.2.3\n",
                 output.read_text(encoding="utf-8"),
             )
+
+    def test_rejects_output_injection_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "pyproject.toml").write_text(
+                '[tool.maintenance]\npython = """3.12\nuv=evil"""\nuv = "1.2.3"\n',
+                encoding="utf-8",
+            )
+            output = root / "github-output"
+            output.write_text("prior=value\n", encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}), patch.object(
+                toolchains, "PROJECT_ROOT", root
+            ):
+                with self.assertRaises(ValueError):
+                    toolchains.main()
+            self.assertEqual("prior=value\n", output.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
