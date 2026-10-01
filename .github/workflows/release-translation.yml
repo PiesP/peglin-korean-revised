@@ -31,10 +31,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Resolve maintenance toolchains
+        id: toolchains
+        run: python3 .github/scripts/resolve_toolchains.py
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.toolchains.outputs.python }}
       - name: Verify eligible pull request or administrator issue update
         id: verify
         env:
@@ -67,17 +70,22 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Resolve maintenance toolchains
+        id: toolchains
+        run: python3 .github/scripts/resolve_toolchains.py
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.toolchains.outputs.python }}
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
         with:
-          version: "0.9.7"
+          version: ${{ steps.toolchains.outputs.uv }}
           enable-cache: false
       - name: Install locked dependencies
-        run: uv sync --locked --python 3.11
+        env:
+          PYTHON_VERSION: ${{ steps.toolchains.outputs.python }}
+        run: uv sync --locked --python "$PYTHON_VERSION"
       - name: Compile package
         run: uv run --locked python -m compileall -q src/peglin_l10n
       - name: Run package tests
