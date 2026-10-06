@@ -83,6 +83,36 @@ Peglin/                              (Peglin.exe가 있는 게임 폴더)
 지원하지 않는 게임 버전에서는 패치가 적용되지 않습니다. 게임 업데이트 후 번역이
 나오지 않으면 릴리스 목록에서 더 최신 패치가 있는지 확인해 주세요.
 
+## 적용 상태 확인과 문제 해결
+
+게임 언어를 한국어로 선택한 뒤, 문제가 생기면 BepInEx의 `LogOutput.log`에서
+`Peglin Korean Revised`가 남긴 아래 메시지를 확인하세요. 수동 설치에서는 게임 폴더의
+`BepInEx/LogOutput.log`를, 모드 매니저에서는 **실행에 사용한 Peglin 프로필**의 같은
+상대 경로를 확인합니다. 다른 프로필이나 이전 실행 로그와 혼동하지 마세요.
+
+| 로그의 메시지 일부 | 의미와 다음 조치 |
+| --- | --- |
+| `Loaded … Korean terms` | 패치 파일을 읽었습니다. 아직 게임 원본 검증이나 번역 적용이 끝난 상태는 아닙니다. |
+| `Starting Peglin source file verification` | 지원하는 게임인지 확인하고 있습니다. 파일 전체를 검사하며, `Verified`에 기록된 시간은 해시 검사 시간이지 전체 게임 시작 시간이 아닙니다. |
+| `Verified resources.assets SHA-256` | 두 게임 파일의 해시가 일치합니다. 이어지는 적용 결과도 확인하세요. |
+| `Waiting for the Korean I2 Localization source` | 게임의 번역 데이터를 기다리고 있습니다. 아직 적용 완료가 아닙니다. |
+| `Applied … Korean translations to the in-memory I2 table` | 메모리의 번역 표에 반영했습니다. 실제 화면의 한국어 문구도 확인하세요. 이 메시지만으로 모든 화면의 표시를 보장하지는 않습니다. |
+| `does not match this candidate` | 게임 원본과 패치의 지원 대상이 다릅니다. 최신 호환 패치를 확인하고, 없다면 새 패치를 기다리세요. 예상 해시를 고치거나 검사를 끄지 마세요. |
+| `resources.assets was not found` / `Assembly-CSharp.dll was not found` | 필요한 게임 파일을 찾지 못했습니다. 올바른 게임과 프로필로 실행했는지 확인하고 Steam의 게임 파일 무결성 검사를 사용하세요. |
+| `Korean overlay could not start` | 패치 파일이 없거나 손상됐거나 서로 다른 패키지가 섞였을 수 있습니다. 아래 업데이트 절차에 따라 패치 전용 폴더만 제거하고 같은 ZIP의 파일을 함께 다시 설치하세요. |
+| `Could not verify` / `Korean source verification could not start` | 게임 파일 검사에 실패했습니다. 바로 뒤의 오류와 설치 방법을 확인해 패치 문제로 제보하세요. |
+| `No overlay terms matched the Korean I2 source` | 대기 후에도 적용할 번역 데이터를 찾지 못했습니다. 게임 언어와 실행 프로필을 확인한 뒤 관련 메시지를 제보하세요. 해시 불일치와는 다른 상태입니다. |
+
+패치 메시지가 전혀 없다면 BepInEx가 해당 실행에서 로드됐는지, 플러그인 폴더와
+설치 4번의 설정이 맞는지부터 확인하세요. 원본 검증이 오래 걸리는 것처럼 느껴지면
+`Hashing`과 `Verified` 메시지의 파일 크기·검사 시간을 함께 확인하세요. 검사는 현재
+동기식이며, 느리다는 느낌만으로 원본 검증을 생략하지 않습니다.
+
+[패치 문제 제보](https://github.com/PiesP/peglin-korean-revised/issues/new?template=patch-problem.yml)에는
+패치 버전, 확인 가능한 게임 빌드, 설치 방법, 발생한 현상과 **관련 메시지 몇 줄**만
+첨부하면 됩니다. 사용자 이름, 개인 경로, 계정·세이브 정보는 가리고 전체 로그나
+게임 파일·DLL은 올리지 마세요. 번역 수정안을 제시할 필요는 없습니다.
+
 ## 업데이트
 
 Peglin을 종료하고 `BepInEx/plugins/PeglinKoreanRevised` 폴더를 삭제한 뒤, 최신 설치용
