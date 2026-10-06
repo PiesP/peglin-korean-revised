@@ -28,7 +28,11 @@ def release_argv(
     """Construct one release command from verified workflow outputs."""
     if SHA.fullmatch(source_sha) is None or TAG.fullmatch(tag) is None:
         raise ValueError("The selected source or release tag is invalid.")
-    if REPOSITORY.fullmatch(repository) is None or OVERLAY.fullmatch(overlay_name) is None:
+    if (
+        REPOSITORY.fullmatch(repository) is None
+        or OVERLAY.fullmatch(overlay_name) is None
+        or overlay_name == "release-manifest.json"
+    ):
         raise ValueError("The repository or overlay name is invalid.")
     if ("-rc." in tag) != prerelease:
         raise ValueError("The prerelease flag disagrees with the selected tag.")

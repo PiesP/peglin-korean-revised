@@ -101,6 +101,11 @@ class ReleasePublisherTests(unittest.TestCase):
             self.publish()
         self.assertEqual([], self.calls)
 
+    def test_release_manifest_cannot_be_selected_as_overlay(self) -> None:
+        with self.assertRaisesRegex(ValueError, "overlay name is invalid"):
+            self.publish(overlay_name="release-manifest.json")
+        self.assertEqual([], self.calls)
+
     def test_api_and_release_errors_are_not_retried(self) -> None:
         def api_failure(argv: list[str], **kwargs: object) -> None:
             self.calls.append(argv)
