@@ -115,3 +115,58 @@ git push origin peglin-ko-v1.0.0-rc.1
 없게 설정되어 있습니다. 인증된 관리자 Git 계정으로 태그를 푸시해야 합니다. Actions의
 `GITHUB_TOKEN`으로 태그를 만들면 태그 푸시 워크플로가 시작되지 않습니다. 릴리스
 워크플로가 실패하면 Actions에서 실패한 실행을 다시 실행하세요.
+
+## Automation command catalog
+
+Python is the primary language for handwritten repository automation. The
+`peglin-l10n` entry point is declared in `pyproject.toml`; `uv.lock` and
+`[tool.maintenance]` select dependencies and runtimes. Use the locked Python
+3.11 environment for local package commands. C# under `plugin/` is product
+code; workflow YAML, lockfiles, and generated release files are not scripts.
+
+| Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
+| --- | --- | --- | --- |
+| `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, locked UnityPy, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
+| `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and locked environment | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
+| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, .NET SDK, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
+| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, locked package environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
+| `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
+| `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
+| `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
+| `peglin-l10n fingerprint` | Compute one source row fingerprint; `cli.py`, `fingerprints.py` | Locked package environment and local `terms.csv` | `--terms`, `--term`; JSON stdout, no writes; package tests |
+
+| Workflow helper | Runtime, inputs and effects | Tests |
+| --- | --- | --- |
+| `python3 .github/scripts/resolve_toolchains.py` | Bootstrap Python on Ubuntu before setup-python or `uv`; reads only `pyproject.toml` with standard-library `tomllib`, appends validated Python/uv versions to `GITHUB_OUTPUT`. It cannot import installed project dependencies or assume a newer bootstrap Python. | `test_toolchain_selection.py` |
+| `python3 .github/scripts/verify_release_source.py` | Source-eligibility job after read-only checkout and Python setup; reads tag, actor, source and repository environment, invokes `gh api` with inherited `GH_TOKEN`, and writes eligibility/source/tag/tag-object outputs. It never publishes. | `test_release_source_policy.py` |
+| `python3 .github/scripts/verify_release_artifacts.py` | Publication job, standard library only, from a reviewed immutable trusted checkout; reads downloaded current-run files and verified source/tag environment; appends release outputs only after every check passes. No candidate import/install or network call. | `test_release_artifact_verifier.py` |
+| `python3 .github/scripts/publish_release.py` | Publication job after successful artifact verification; uses inherited `GH_TOKEN`, rechecks the annotated tag object through `gh api`, then passes the verified seven assets to `gh release create` as an argument vector. | `test_release_publisher.py` |
+
+`validate.yml` and the build job in `release-translation.yml` use locked `uv`
+for installation, compilation, test discovery and lint. The build job alone
+runs `build-release-candidate`; `upload-artifact` stores its outputs for the same
+workflow run. The eligibility job verifies the tag, latest `master` source,
+permission-confirmed contribution and exact required check. The publication
+job has `contents: write`; its downloaded candidate files are data, while the
+verifier must come from a separately reviewed immutable full commit SHA with
+`persist-credentials: false` and no candidate dependency install. Only then
+may verifier outputs reach the tag-object recheck and release creation. During
+the two-stage migration, the existing workflow-bound inline validator and
+shell publication step remain active until that trusted SHA is landed and
+pinned. `test_release_artifact_verifier.py` exercises the existing validator
+as a baseline until the workflow switches to the extracted helper.
+
+Remaining workflow `run:` blocks are bounded adapters: checkout/setup action
+inputs are YAML; `python3` and `uv` commands start the named helpers or package
+checks; the shell `set -euo pipefail` blocks guard step failure. The security
+workflow retains Bash for pinned Docker OSV scanning, SARIF handling and
+locked `dotnet` CodeQL reference-stub builds; changing those tool boundaries
+or their failure handling calls for a separate security review. The release
+workflow's inline validator and `gh` Bash block require removal when the
+trusted verifier commit is pinned. Review the bootstrap constraint whenever
+the runner Python, manifest parser or dependency order changes; review every
+remaining inline block when its policy, permissions, source, outputs or
+external command changes. `candidate.py` invokes `dotnet` through an argument
+list; `verify_release_source.py` and the publisher likewise invoke `gh` without
+shell interpolation. The contributor's manual `git fetch/tag/push` example
+above is a human release action, not a CI script.
