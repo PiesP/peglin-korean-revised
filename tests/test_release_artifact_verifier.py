@@ -17,7 +17,6 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github/workflows/release-translation.yml"
 SCRIPT = ROOT / ".github/scripts/verify_release_artifacts.py"
 SOURCE_SHA = "a" * 40
 PLUGIN = "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"
@@ -106,13 +105,6 @@ class ReleaseFixture:
             (self.root / name).write_bytes(contents)
 
 
-def workflow_verifier() -> str | None:
-    workflow = WORKFLOW.read_text(encoding="utf-8")
-    if "          python3 - <<'PY'\n" not in workflow:
-        return None
-    block = workflow.split("          python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0]
-    return "\n".join(line[10:] for line in block.splitlines()) + "\n"
-
 
 class ReleaseArtifactVerifierTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -124,16 +116,14 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def run_verifier(self, *, source: str = SOURCE_SHA, tag: str | None = None,
-                     workflow: bool = False) -> subprocess.CompletedProcess[str]:
+    def run_verifier(self, *, source: str = SOURCE_SHA, tag: str | None = None) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env.update({
             "RELEASE_DIR": str(self.root), "SOURCE_SHA": source,
             "RELEASE_TAG": tag or self.fixture.tag, "GITHUB_OUTPUT": str(self.output),
         })
-        inline = workflow_verifier() if workflow else None
         return subprocess.run(
-            [sys.executable, "-c", inline] if inline is not None else [sys.executable, str(SCRIPT)],
+            [sys.executable, str(SCRIPT)],
             text=True, capture_output=True, env=env, check=False,
         )
 
@@ -154,21 +144,6 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
                     f"tag={self.fixture.tag}\noverlay={STANDALONE}\n",
                     self.output.read_text(encoding="utf-8"),
                 )
-                self.output.unlink()
-
-    def test_extracted_cli_matches_actual_workflow_bound_verifier(self) -> None:
-        if workflow_verifier() is None:
-            self.skipTest("the workflow now calls the extracted verifier")
-        for prerelease in (True, False):
-            with self.subTest(prerelease=prerelease):
-                self.fixture = ReleaseFixture(self.root, prerelease=prerelease)
-                baseline = self.run_verifier(workflow=True)
-                self.assertEqual(0, baseline.returncode, baseline.stderr)
-                baseline_output = self.output.read_bytes()
-                self.output.unlink()
-                extracted = self.run_verifier()
-                self.assertEqual(0, extracted.returncode, extracted.stderr)
-                self.assertEqual(baseline_output, self.output.read_bytes())
                 self.output.unlink()
 
     def test_rejects_identity_and_manifest_mismatches(self) -> None:
