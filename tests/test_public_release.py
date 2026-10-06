@@ -589,6 +589,10 @@ class ReleasePackagingTests(unittest.TestCase):
         self.assertIn("실제 플레이에서 발견한 사용자 제보", package_readme)
         self.assertIn("issues/new?template=translation-suggestion.yml", package_readme)
         self.assertIn("AI 도구의 도움", package_readme)
+        self.assertIn("BepInEx/LogOutput.log", package_readme)
+        self.assertIn("실행에 사용한 Peglin 프로필", package_readme)
+        self.assertIn("README.md#적용-상태-확인과-문제-해결", package_readme)
+        self.assertIn("`Loaded`는 파일을 읽었다는 뜻이며 적용 완료가 아닙니다", package_readme)
         self.assertNotIn("Assembly-CSharp.dll SHA-256", package_readme)
         self.assertEqual(
             manifest["runtime"]["pluginVersion"],
