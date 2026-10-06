@@ -150,11 +150,15 @@ permission-confirmed contribution and exact required check. The publication
 job has `contents: write`; its downloaded candidate files are data, while the
 verifier must come from a separately reviewed immutable full commit SHA with
 `persist-credentials: false` and no candidate dependency install. Only then
-may verifier outputs reach the tag-object recheck and release creation. During
-the two-stage migration, the existing workflow-bound inline validator and
-shell publication step remain active until that trusted SHA is landed and
-pinned. `test_release_artifact_verifier.py` exercises the existing validator
-as a baseline until the workflow switches to the extracted helper.
+may verifier outputs reach the tag-object recheck and release creation.
+`release-translation.yml` is the authority for the reviewed helper commit. The
+publication checkout loads only the two standard-library helper files into
+`.trusted-release`, separately from downloaded artifacts; it does not install
+the candidate package. When updating a helper, land and verify its code first,
+then update this immutable pin in a separate reviewed change. Roll back by
+restoring the previous reviewed pin; candidate source/tag identity stays in the
+eligibility outputs. `test_release_artifact_verifier.py` and
+`test_release_workflow.py` cover the CLI contract and trusted workflow wiring.
 
 Remaining workflow `run:` blocks are bounded adapters: checkout/setup action
 inputs are YAML; `python3` and `uv` commands start the named helpers or package
@@ -162,8 +166,8 @@ checks; the shell `set -euo pipefail` blocks guard step failure. The security
 workflow retains Bash for pinned Docker OSV scanning, SARIF handling and
 locked `dotnet` CodeQL reference-stub builds; changing those tool boundaries
 or their failure handling calls for a separate security review. The release
-workflow's inline validator and `gh` Bash block require removal when the
-trusted verifier commit is pinned. Review the bootstrap constraint whenever
+workflow's artifact validation and release argument/tag checks live in its
+Python helpers. Review the bootstrap constraint whenever
 the runner Python, manifest parser or dependency order changes; review every
 remaining inline block when its policy, permissions, source, outputs or
 external command changes. `candidate.py` invokes `dotnet` through an argument
