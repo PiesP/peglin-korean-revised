@@ -60,7 +60,9 @@ def compare_snapshots(
                 status = "OVERRIDE_TERM_REMOVED" if old is not None else "OVERRIDE_TERM_ORPHAN"
                 statuses.append(status)
             else:
-                fingerprint = override.get("sourceFingerprint") if isinstance(override, dict) else None
+                fingerprint = (
+                    override.get("sourceFingerprint") if isinstance(override, dict) else None
+                )
                 if not isinstance(fingerprint, str):
                     statuses.append("OVERRIDE_UNBOUND")
                 elif fingerprint != source_fingerprint(new):

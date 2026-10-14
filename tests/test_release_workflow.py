@@ -13,11 +13,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_release_artifact_verifier import ReleaseFixture, SOURCE_SHA
-
+from test_release_artifact_verifier import SOURCE_SHA, ReleaseFixture
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/release-translation.yml"
+VALIDATE_WORKFLOW = ROOT / ".github/workflows/validate.yml"
 
 
 def publication_step(name: str) -> str:
@@ -39,6 +39,30 @@ def command(name: str) -> list[str]:
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
+    def test_python_quality_gates_precede_package_validation(self) -> None:
+        for workflow in (VALIDATE_WORKFLOW, WORKFLOW):
+            with self.subTest(workflow=workflow.name):
+                text = workflow.read_text()
+                build = (
+                    text.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+                    if workflow == WORKFLOW
+                    else text
+                )
+                steps = (
+                    "Install locked dependencies",
+                    "Lint Python",
+                    "Check Python formatting",
+                    "Compile package",
+                    "Run package tests",
+                )
+                self.assertEqual(
+                    sorted(build.index(step) for step in steps),
+                    [build.index(step) for step in steps],
+                )
+                self.assertIn("run: uv run --locked ruff check .", build)
+                self.assertIn("run: uv run --locked ruff format --check .", build)
+                self.assertNotIn("continue-on-error", build)
+
     def test_publication_loads_only_immutable_trusted_helpers(self) -> None:
         publish = WORKFLOW.read_text().split("  publish:\n", 1)[1]
         checkout = publication_step("Load reviewed publication helpers")
@@ -48,10 +72,13 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", checkout)
         self.assertIn("sparse-checkout-cone-mode: false", checkout)
         paths = checkout.split("          sparse-checkout: |\n", 1)[1].splitlines()
-        self.assertEqual([
-            ".github/scripts/verify_release_artifacts.py",
-            ".github/scripts/publish_release.py",
-        ], [line.strip() for line in paths])
+        self.assertEqual(
+            [
+                ".github/scripts/verify_release_artifacts.py",
+                ".github/scripts/publish_release.py",
+            ],
+            [line.strip() for line in paths],
+        )
         self.assertNotIn("${{", checkout)
         self.assertNotIn("uv ", publish)
         self.assertNotIn("pip ", publish)
@@ -59,10 +86,19 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("python3 - <<", publish)
         self.assertNotIn("gh release create", publish)
         self.assertIn("needs: [verify-release-source, build]", publish)
-        self.assertIn("needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'", publish)
+        self.assertIn(
+            "needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'",
+            publish,
+        )
         self.assertIn("contents: write", publish)
-        self.assertLess(publish.index("Load reviewed publication helpers"), publish.index("Verify provenance and checksums"))
-        self.assertLess(publish.index("Verify provenance and checksums"), publish.index("Create release for the verified commit"))
+        self.assertLess(
+            publish.index("Load reviewed publication helpers"),
+            publish.index("Verify provenance and checksums"),
+        )
+        self.assertLess(
+            publish.index("Verify provenance and checksums"),
+            publish.index("Create release for the verified commit"),
+        )
         download = publication_step("Download files built by this workflow")
         self.assertNotIn("run-id:", download)
         self.assertNotIn("repository:", download)
@@ -83,8 +119,18 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("        if:", create)
 
     def test_real_workflow_helpers_stop_on_bad_data_and_recheck_tags(self) -> None:
-        for mode in ("valid-rc", "valid-stable", "invalid", "moved-tag", "api-failure", "publish-failure"):
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix="release workflow ") as directory:
+        for mode in (
+            "valid-rc",
+            "valid-stable",
+            "invalid",
+            "moved-tag",
+            "api-failure",
+            "publish-failure",
+        ):
+            with (
+                self.subTest(mode=mode),
+                tempfile.TemporaryDirectory(prefix="release workflow ") as directory,
+            ):
                 root = Path(directory)
                 release = root / "artifacts"
                 release.mkdir()
@@ -108,16 +154,29 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 gh.chmod(0o755)
                 output = root / "github-output"
                 calls = root / "calls.jsonl"
-                env = {**os.environ, "PATH": str(bin_path) + os.pathsep + os.environ.get("PATH", ""),
-                       "RELEASE_DIR": str(release), "SOURCE_SHA": SOURCE_SHA,
-                       "RELEASE_TAG": fixture.tag, "TAG_OBJECT_SHA": "d" * 40,
-                       "GITHUB_REPOSITORY": "PiesP/peglin-korean-revised",
-                       "GITHUB_OUTPUT": str(output), "CALLS": str(calls), "MODE": mode,
-                       "GH_TOKEN": "synthetic-unused-token"}
+                env = {
+                    **os.environ,
+                    "PATH": str(bin_path) + os.pathsep + os.environ.get("PATH", ""),
+                    "RELEASE_DIR": str(release),
+                    "SOURCE_SHA": SOURCE_SHA,
+                    "RELEASE_TAG": fixture.tag,
+                    "TAG_OBJECT_SHA": "d" * 40,
+                    "GITHUB_REPOSITORY": "PiesP/peglin-korean-revised",
+                    "GITHUB_OUTPUT": str(output),
+                    "CALLS": str(calls),
+                    "MODE": mode,
+                    "GH_TOKEN": "synthetic-unused-token",
+                }
                 if mode == "invalid":
                     (release / "LICENSE").write_bytes(b"corrupt")
-                verify = subprocess.run(command("Verify provenance and checksums"), cwd=root, env=env,
-                                        capture_output=True, text=True, check=False)
+                verify = subprocess.run(
+                    command("Verify provenance and checksums"),
+                    cwd=root,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
                 if mode == "invalid":
                     self.assertNotEqual(0, verify.returncode)
                     self.assertFalse(output.exists())
@@ -125,9 +184,19 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     continue
                 self.assertEqual(0, verify.returncode, verify.stderr)
                 values = dict(line.split("=", 1) for line in output.read_text().splitlines())
-                env.update(RELEASE_TAG=values["tag"], PRERELEASE=values["prerelease"], OVERLAY_NAME=values["overlay"])
-                result = subprocess.run(command("Create release for the verified commit"), cwd=root, env=env,
-                                        capture_output=True, text=True, check=False)
+                env.update(
+                    RELEASE_TAG=values["tag"],
+                    PRERELEASE=values["prerelease"],
+                    OVERLAY_NAME=values["overlay"],
+                )
+                result = subprocess.run(
+                    command("Create release for the verified commit"),
+                    cwd=root,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
                 actual = [json.loads(line) for line in calls.read_text().splitlines()]
                 if mode in {"moved-tag", "api-failure"}:
                     self.assertNotEqual(0, result.returncode)

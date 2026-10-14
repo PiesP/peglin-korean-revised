@@ -22,8 +22,12 @@ Run = Callable[..., subprocess.CompletedProcess[str]]
 
 
 def release_argv(
-    root: Path, repository: str, source_sha: str, tag: str,
-    prerelease: bool, overlay_name: str,
+    root: Path,
+    repository: str,
+    source_sha: str,
+    tag: str,
+    prerelease: bool,
+    overlay_name: str,
 ) -> list[str]:
     """Construct one release command from verified workflow outputs."""
     if SHA.fullmatch(source_sha) is None or TAG.fullmatch(tag) is None:
@@ -40,16 +44,28 @@ def release_argv(
     if len(archives) != 1 or not archives[0].is_file() or archives[0].is_symlink():
         raise ValueError("Expected exactly one verified install archive.")
     assets = [
-        root / overlay_name, archives[0], root / "LICENSE",
-        root / "TRANSLATION-NOTICE.txt", root / "release-notes.md",
-        root / "release-manifest.json", root / "SHA256SUMS.txt",
+        root / overlay_name,
+        archives[0],
+        root / "LICENSE",
+        root / "TRANSLATION-NOTICE.txt",
+        root / "release-notes.md",
+        root / "release-manifest.json",
+        root / "SHA256SUMS.txt",
     ]
     if any(not path.is_file() or path.is_symlink() for path in assets):
         raise ValueError("A verified release asset is missing or is a symlink.")
     argv = [
-        "gh", "release", "create", tag, "--verify-tag", "--target", source_sha,
-        "--title", f"Peglin Korean Revised {tag.removeprefix('peglin-ko-')}",
-        "--notes-file", str(root / "release-notes.md"),
+        "gh",
+        "release",
+        "create",
+        tag,
+        "--verify-tag",
+        "--target",
+        source_sha,
+        "--title",
+        f"Peglin Korean Revised {tag.removeprefix('peglin-ko-')}",
+        "--notes-file",
+        str(root / "release-notes.md"),
     ]
     if prerelease:
         argv.append("--prerelease")
@@ -58,9 +74,15 @@ def release_argv(
 
 
 def publish_release(
-    root: Path, repository: str, source_sha: str, tag: str,
-    tag_object_sha: str, prerelease: bool, overlay_name: str,
-    *, run: Run = subprocess.run,
+    root: Path,
+    repository: str,
+    source_sha: str,
+    tag: str,
+    tag_object_sha: str,
+    prerelease: bool,
+    overlay_name: str,
+    *,
+    run: Run = subprocess.run,
 ) -> None:
     """Recheck the annotated tag object immediately before release creation."""
     argv = release_argv(root, repository, source_sha, tag, prerelease, overlay_name)
@@ -68,7 +90,9 @@ def publish_release(
         raise ValueError("The verified tag object SHA is invalid.")
     result = run(
         ["gh", "api", f"repos/{repository}/git/ref/tags/{tag}", "--jq", ".object.sha"],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     if result.stdout.strip() != tag_object_sha:
         raise ValueError("The protected release tag changed after source verification.")
@@ -81,9 +105,12 @@ def main() -> int:
         if prerelease not in {"true", "false"}:
             raise ValueError("The prerelease output is invalid.")
         publish_release(
-            Path(os.environ["RELEASE_DIR"]), os.environ["GITHUB_REPOSITORY"],
-            os.environ["SOURCE_SHA"], os.environ["RELEASE_TAG"],
-            os.environ["TAG_OBJECT_SHA"], prerelease == "true",
+            Path(os.environ["RELEASE_DIR"]),
+            os.environ["GITHUB_REPOSITORY"],
+            os.environ["SOURCE_SHA"],
+            os.environ["RELEASE_TAG"],
+            os.environ["TAG_OBJECT_SHA"],
+            prerelease == "true",
             os.environ["OVERLAY_NAME"],
         )
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as exc:

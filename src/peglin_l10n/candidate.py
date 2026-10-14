@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _PLUGIN_GUID = "piesp.peglin.koreanrevised"
@@ -41,14 +40,10 @@ def _run_dotnet(command: list[str], project_dir: Path) -> None:
 
     if result.returncode != 0:
         output = "\n".join(
-            line
-            for line in (result.stdout + "\n" + result.stderr).splitlines()
-            if line.strip()
+            line for line in (result.stdout + "\n" + result.stderr).splitlines() if line.strip()
         )
         tail = "\n".join(output.splitlines()[-80:])
-        raise ValueError(
-            f"Plugin build command failed with exit code {result.returncode}:\n{tail}"
-        )
+        raise ValueError(f"Plugin build command failed with exit code {result.returncode}:\n{tail}")
 
 
 def _sha256_file(path: Path) -> str:
@@ -154,9 +149,7 @@ def _zip_timestamp_for_contents(
         // _ZIP_TIMESTAMP_RESOLUTION_SECONDS
     )
     digest = hashlib.sha256(contents).digest()
-    timestamp_slot = (
-        int.from_bytes(digest, byteorder="big") % (timestamp_slots - 1)
-    ) + 1
+    timestamp_slot = (int.from_bytes(digest, byteorder="big") % (timestamp_slots - 1)) + 1
     timestamp = _ZIP_TIMESTAMP_EPOCH + timedelta(
         seconds=timestamp_slot * _ZIP_TIMESTAMP_RESOLUTION_SECONDS
     )
@@ -280,15 +273,13 @@ def _package_candidate(
             "BepInEx/plugins/PeglinKoreanRevised/overlay.json": overlay_sha256,
         },
     }
-    manifest_bytes = (
-        json.dumps(package_manifest, ensure_ascii=False, indent=2) + "\n"
-    ).encode("utf-8")
+    manifest_bytes = (json.dumps(package_manifest, ensure_ascii=False, indent=2) + "\n").encode(
+        "utf-8"
+    )
     readme_bytes = _candidate_readme(overlay).encode("utf-8")
     build_id = source["steamBuildId"]
     asset_sha256 = source["assetSha256"]
-    archive_path = candidate_dir / (
-        f"PeglinKoreanRevised-{build_id}-{asset_sha256[:8]}.zip"
-    )
+    archive_path = candidate_dir / (f"PeglinKoreanRevised-{build_id}-{asset_sha256[:8]}.zip")
     _write_zip_atomically(
         archive_path,
         {

@@ -18,9 +18,7 @@ from typing import Any
 
 from . import __version__
 
-DEFAULT_GAME_ROOT = Path(
-    "/mnt/c/Program Files (x86)/Steam/steamapps/common/Peglin"
-)
+DEFAULT_GAME_ROOT = Path("/mnt/c/Program Files (x86)/Steam/steamapps/common/Peglin")
 APP_ID = "1296610"
 TARGET_OBJECT_NAME = "I2Languages"
 TARGET_SCRIPT = ("I2.Loc", "LanguageSourceAsset")
@@ -90,9 +88,7 @@ def _read_u32(data: bytes, offset: int, label: str) -> tuple[int, int]:
     return struct.unpack_from("<I", data, offset)[0], offset + 4
 
 
-def _read_aligned_string(
-    data: bytes, offset: int, label: str
-) -> tuple[str, int]:
+def _read_aligned_string(data: bytes, offset: int, label: str) -> tuple[str, int]:
     length, offset = _read_u32(data, offset, f"{label} length")
     if length > MAX_STRING_BYTES:
         raise ExtractionError(f"Implausible {label} length: {length} bytes.")
@@ -133,9 +129,7 @@ def _parse_term(data: bytes, offset: int, expected_languages: int | None) -> tup
 
     language_count, offset = _read_u32(data, offset, f"language count for {key!r}")
     if not 1 <= language_count <= MAX_LANGUAGE_COUNT:
-        raise ExtractionError(
-            f"Implausible language count for {key!r}: {language_count}."
-        )
+        raise ExtractionError(f"Implausible language count for {key!r}: {language_count}.")
     if expected_languages is not None and language_count != expected_languages:
         raise ExtractionError(
             f"Inconsistent language count for {key!r}: "
@@ -144,16 +138,13 @@ def _parse_term(data: bytes, offset: int, expected_languages: int | None) -> tup
 
     translations: list[str] = []
     for index in range(language_count):
-        value, offset = _read_aligned_string(
-            data, offset, f"translation {index} for {key!r}"
-        )
+        value, offset = _read_aligned_string(data, offset, f"translation {index} for {key!r}")
         translations.append(value)
 
     touch_count, offset = _read_u32(data, offset, f"flag count for {key!r}")
     if touch_count != language_count:
         raise ExtractionError(
-            f"Touch flag count for {key!r} is {touch_count}; "
-            f"expected {language_count}."
+            f"Touch flag count for {key!r} is {touch_count}; expected {language_count}."
         )
     end_flags = offset + touch_count
     if end_flags > len(data):
@@ -178,12 +169,8 @@ def _parse_term(data: bytes, offset: int, expected_languages: int | None) -> tup
 def _parse_language_tail(
     data: bytes, offset: int, expected_languages: int
 ) -> tuple[tuple[Language, ...], int]:
-    _case_insensitive, offset = _read_aligned_bool(
-        data, offset, "CaseInsensitiveTerms"
-    )
-    _missing_translation_policy, offset = _read_u32(
-        data, offset, "OnMissingTranslation"
-    )
+    _case_insensitive, offset = _read_aligned_bool(data, offset, "CaseInsensitiveTerms")
+    _missing_translation_policy, offset = _read_u32(data, offset, "OnMissingTranslation")
     _term_app_name, offset = _read_aligned_string(data, offset, "mTerm_AppName")
     language_count, offset = _read_u32(data, offset, "I2 language descriptor count")
     if language_count != expected_languages:
@@ -353,8 +340,7 @@ def load_installation(game_root: Path) -> InstallationData:
     actual_script = (script.m_Namespace, script.m_ClassName)
     if actual_script != TARGET_SCRIPT:
         raise ExtractionError(
-            "I2Languages points to an unexpected script: "
-            f"{actual_script[0]}.{actual_script[1]}"
+            f"I2Languages points to an unexpected script: {actual_script[0]}.{actual_script[1]}"
         )
 
     try:
@@ -373,7 +359,9 @@ def load_installation(game_root: Path) -> InstallationData:
     except OSError as exc:
         raise ExtractionError(f"Could not verify resources.assets after extraction: {exc}") from exc
     if current_asset_signature != asset_signature:
-        raise ExtractionError("resources.assets changed during extraction; no snapshot was written.")
+        raise ExtractionError(
+            "resources.assets changed during extraction; no snapshot was written."
+        )
     if _steam_build_id(game_root) != build_id:
         raise ExtractionError("Steam's Peglin build manifest changed during extraction.")
 
@@ -390,7 +378,9 @@ def load_installation(game_root: Path) -> InstallationData:
 
 
 def _language_index(languages: tuple[Language, ...], code: str) -> int:
-    matches = [index for index, language in enumerate(languages) if language.code.casefold() == code]
+    matches = [
+        index for index, language in enumerate(languages) if language.code.casefold() == code
+    ]
     if len(matches) != 1:
         raise ExtractionError(f"Expected one {code!r} language slot; found {len(matches)}.")
     return matches[0]
@@ -399,9 +389,7 @@ def _language_index(languages: tuple[Language, ...], code: str) -> int:
 def _mono_header_size(data: bytes, serialized_version: int, object_name: str) -> int:
     pointer_size = 12 if serialized_version >= 14 else 8
     name_offset = pointer_size + 4 + pointer_size
-    name_length, name_data_offset = _read_u32(
-        data, name_offset, "MonoBehaviour name length"
-    )
+    name_length, name_data_offset = _read_u32(data, name_offset, "MonoBehaviour name length")
     if name_length > 1024 or name_data_offset + name_length > len(data):
         raise ExtractionError("The MonoBehaviour name field is outside the object data.")
     try:
@@ -440,9 +428,7 @@ def _make_csv_rows(table: ParsedTable) -> list[dict[str, str]]:
                 "OfficialKorean": official_korean,
                 "RevisedKorean": "",
                 "Status": (
-                    "missing"
-                    if english.strip() and not official_korean.strip()
-                    else "unreviewed"
+                    "missing" if english.strip() and not official_korean.strip() else "unreviewed"
                 ),
                 "Comment": "",
             }
@@ -478,9 +464,7 @@ def _source_manifest(data: InstallationData) -> dict[str, Any]:
         "termCount": len(table.terms),
         "languageCount": len(table.languages),
         "missingKoreanWithEnglish": missing_korean,
-        "devNotesNonemptyCount": sum(
-            bool(term.translations[notes_index]) for term in table.terms
-        ),
+        "devNotesNonemptyCount": sum(bool(term.translations[notes_index]) for term in table.terms),
         "devNotesNonblankCount": sum(
             bool(term.translations[notes_index].strip()) for term in table.terms
         ),
@@ -508,13 +492,13 @@ def snapshot_csv_bytes(data: InstallationData) -> bytes:
 def write_snapshot(data: InstallationData, output_dir: Path) -> Path:
     output_dir = output_dir.expanduser().resolve()
     if output_dir.exists():
-        raise ExtractionError(f"Output directory already exists; refusing to overwrite: {output_dir}")
+        raise ExtractionError(
+            f"Output directory already exists; refusing to overwrite: {output_dir}"
+        )
 
     manifest = _source_manifest(data)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    temporary_dir = Path(
-        tempfile.mkdtemp(prefix=f".{output_dir.name}-", dir=output_dir.parent)
-    )
+    temporary_dir = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}-", dir=output_dir.parent))
     try:
         (temporary_dir / "terms.csv").write_bytes(snapshot_csv_bytes(data))
         (temporary_dir / "source.json").write_text(
@@ -530,5 +514,7 @@ def write_snapshot(data: InstallationData, output_dir: Path) -> Path:
 
 
 def default_output_dir(data: InstallationData) -> Path:
-    build_part = f"build-{data.build_id}" if data.build_id else f"build-unknown-{data.asset_sha256[:8]}"
+    build_part = (
+        f"build-{data.build_id}" if data.build_id else f"build-unknown-{data.asset_sha256[:8]}"
+    )
     return Path(__file__).resolve().parents[2] / "extracted" / build_part

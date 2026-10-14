@@ -6,7 +6,6 @@ import hashlib
 import json
 from collections.abc import Mapping
 
-
 SOURCE_FIELDS = ("Term", "English", "DevNotes", "I2Description")
 
 

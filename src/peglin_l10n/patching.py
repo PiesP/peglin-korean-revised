@@ -20,7 +20,6 @@ from .validation import (
     validate_locked_translations,
 )
 
-
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
@@ -46,10 +45,7 @@ def _read_source_manifest(path: Path, term_count: int) -> dict[str, Any]:
             raise ValueError(f"Source manifest {field} must be a nonempty string.")
 
     asset_sha256 = data.get("assetSha256")
-    if (
-        not isinstance(asset_sha256, str)
-        or _SHA256_PATTERN.fullmatch(asset_sha256) is None
-    ):
+    if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
         raise ValueError("Source manifest assetSha256 must be a lowercase SHA-256 digest.")
     return data
 
@@ -111,9 +107,7 @@ def create_overlay_patch(
     """Validate reviewed inputs and atomically write a Korean overlay patch."""
 
     _, structure_issues = lint_overrides(overrides_path)
-    structure_errors = [
-        issue for issue in structure_issues if issue.severity == "error"
-    ]
+    structure_errors = [issue for issue in structure_issues if issue.severity == "error"]
     if structure_errors:
         details = "; ".join(
             f"{issue.code}{f' [{issue.term}]' if issue.term else ''}: {issue.message}"
@@ -157,8 +151,7 @@ def create_overlay_patch(
         if unexpected:
             parts.append(f"unexpected={unexpected!r}")
         raise ValueError(
-            "Overrides must cover exactly every term with nonblank English: "
-            + ", ".join(parts)
+            "Overrides must cover exactly every term with nonblank English: " + ", ".join(parts)
         )
 
     terms: dict[str, dict[str, str]] = {}
@@ -177,7 +170,9 @@ def create_overlay_patch(
         if not isinstance(status, str) or status not in {"draft", "approved"}:
             raise ValueError(f"Override for {term!r} has an invalid status.")
         if not isinstance(fingerprint, str) or _SHA256_PATTERN.fullmatch(fingerprint) is None:
-            raise ValueError(f"Override for {term!r} must have a lowercase SHA-256 sourceFingerprint.")
+            raise ValueError(
+                f"Override for {term!r} must have a lowercase SHA-256 sourceFingerprint."
+            )
         actual_fingerprint = compute_source_fingerprint(rows_by_term[term])
         if fingerprint != actual_fingerprint:
             raise ValueError(f"Override for {term!r} has a stale sourceFingerprint.")

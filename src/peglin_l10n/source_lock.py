@@ -10,7 +10,6 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 PLUGIN_ATTRIBUTE_PATTERN = re.compile(
     r"\[\s*BepInPlugin\s*\(\s*[^,]+,\s*[^,]+,\s*\"([^\"]+)\"\s*\)\s*\]"
@@ -103,9 +102,7 @@ def plugin_source_version(project_root: Path) -> str:
     if len(attribute_versions) != 1:
         raise ValueError("Plugin.cs must declare exactly one BepInPlugin version.")
     if project_versions[0] != attribute_versions[0]:
-        raise ValueError(
-            "Plugin.cs BepInPlugin version does not match the project Version."
-        )
+        raise ValueError("Plugin.cs BepInPlugin version does not match the project Version.")
     return project_versions[0]
 
 
@@ -120,8 +117,7 @@ def read_source_lock(path: Path) -> dict[str, Any]:
         missing = sorted(SOURCE_LOCK_FIELDS - set(data))
         unexpected = sorted(set(data) - SOURCE_LOCK_FIELDS)
         raise ValueError(
-            "Source lock root fields are invalid: "
-            f"missing={missing!r}, unexpected={unexpected!r}."
+            f"Source lock root fields are invalid: missing={missing!r}, unexpected={unexpected!r}."
         )
     expected = {
         "schemaVersion": 1,
@@ -191,9 +187,7 @@ def read_source_lock(path: Path) -> dict[str, Any]:
             raise ValueError(f"Source lock category is invalid for {term!r}.")
         term_category = term.split("/", 1)[0] if "/" in term else "General"
         if category != term_category:
-            raise ValueError(
-                f"Source lock category for {term!r} must match {term_category!r}."
-            )
+            raise ValueError(f"Source lock category for {term!r} must match {term_category!r}.")
         if (
             not isinstance(file_name, str)
             or Path(file_name).name != file_name
@@ -202,17 +196,10 @@ def read_source_lock(path: Path) -> dict[str, Any]:
             raise ValueError(f"Source lock file is invalid for {term!r}.")
         expected_file = f"{category_slug(category)}.csv"
         if file_name != expected_file:
-            raise ValueError(
-                f"Source lock CSV file for {term!r} must be {expected_file!r}."
-            )
-        if (
-            not isinstance(fingerprint, str)
-            or SHA256_PATTERN.fullmatch(fingerprint) is None
-        ):
+            raise ValueError(f"Source lock CSV file for {term!r} must be {expected_file!r}.")
+        if not isinstance(fingerprint, str) or SHA256_PATTERN.fullmatch(fingerprint) is None:
             raise ValueError(f"Source lock fingerprint is invalid for {term!r}.")
-        if not isinstance(tokens, list) or any(
-            not isinstance(token, str) for token in tokens
-        ):
+        if not isinstance(tokens, list) or any(not isinstance(token, str) for token in tokens):
             raise ValueError(f"Source lock protectedTokens are invalid for {term!r}.")
     return data
 

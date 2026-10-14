@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".github" / "scripts" / "resolve_toolchains.py"
 SPEC = importlib.util.spec_from_file_location("resolve_toolchains", SCRIPT)
@@ -52,8 +51,9 @@ class ToolchainSelectionTests(unittest.TestCase):
             )
             output = root / "github-output"
             output.write_text("prior=value\n", encoding="utf-8")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}), patch.object(
-                toolchains, "PROJECT_ROOT", root
+            with (
+                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}),
+                patch.object(toolchains, "PROJECT_ROOT", root),
             ):
                 toolchains.main()
             self.assertEqual(
@@ -70,8 +70,9 @@ class ToolchainSelectionTests(unittest.TestCase):
             )
             output = root / "github-output"
             output.write_text("prior=value\n", encoding="utf-8")
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}), patch.object(
-                toolchains, "PROJECT_ROOT", root
+            with (
+                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}),
+                patch.object(toolchains, "PROJECT_ROOT", root),
             ):
                 with self.assertRaises(ValueError):
                     toolchains.main()

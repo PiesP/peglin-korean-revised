@@ -228,8 +228,12 @@ def _run_extract(args: argparse.Namespace) -> int:
     output_dir = args.output_dir or default_output_dir(data)
     snapshot = write_snapshot(data, output_dir)
     manifest = json.loads((snapshot / "source.json").read_text(encoding="utf-8"))
-    print(f"Extracted {manifest['termCount']} terms from Steam build {manifest['steamBuildId'] or 'unknown'}.")
-    print(f"Official Korean is empty for {manifest['missingKoreanWithEnglish']} terms with English source.")
+    print(
+        f"Extracted {manifest['termCount']} terms from Steam build {manifest['steamBuildId'] or 'unknown'}."
+    )
+    print(
+        f"Official Korean is empty for {manifest['missingKoreanWithEnglish']} terms with English source."
+    )
     print(
         "Dev Notes: "
         f"{manifest['devNotesNonblankCount']} nonblank values "
@@ -292,16 +296,10 @@ def _create_current_overlay(
     if not isinstance(manifest, dict):
         raise ValueError("Source manifest root must be a JSON object.")
     build_id = manifest.get("steamBuildId")
-    if (
-        not isinstance(build_id, str)
-        or re.fullmatch(r"[A-Za-z0-9._-]{1,64}", build_id) is None
-    ):
+    if not isinstance(build_id, str) or re.fullmatch(r"[A-Za-z0-9._-]{1,64}", build_id) is None:
         raise ValueError("Source manifest steamBuildId cannot be used in a patch filename.")
     asset_sha256 = manifest.get("assetSha256")
-    if (
-        not isinstance(asset_sha256, str)
-        or re.fullmatch(r"[0-9a-f]{64}", asset_sha256) is None
-    ):
+    if not isinstance(asset_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", asset_sha256) is None:
         raise ValueError("Source manifest assetSha256 must be a lowercase SHA-256 digest.")
     output_path = args.output_dir.expanduser().resolve() / (
         f"peglin-ko-{build_id}-{asset_sha256[:8]}.json"
