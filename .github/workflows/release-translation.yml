@@ -86,6 +86,10 @@ jobs:
         env:
           PYTHON_VERSION: ${{ steps.toolchains.outputs.python }}
         run: uv sync --locked --python "$PYTHON_VERSION"
+      - name: Lint Python
+        run: uv run --locked ruff check .
+      - name: Check Python formatting
+        run: uv run --locked ruff format --check .
       - name: Compile package
         run: uv run --locked python -m compileall -q src/peglin_l10n
       - name: Run package tests

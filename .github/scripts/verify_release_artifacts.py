@@ -15,13 +15,18 @@ import zipfile
 from pathlib import Path
 
 
-def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: str) -> tuple[bool, str, str]:
+def verify_release_artifacts(
+    release_dir: Path, source_sha: str, release_tag: str
+) -> tuple[bool, str, str]:
     """Return prerelease flag, tag and overlay name only after full validation."""
     root = release_dir
-    prerelease = re.fullmatch(
-        r"peglin-ko-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-rc\.[1-9][0-9]*",
-        release_tag,
-    ) is not None
+    prerelease = (
+        re.fullmatch(
+            r"peglin-ko-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-rc\.[1-9][0-9]*",
+            release_tag,
+        )
+        is not None
+    )
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("The source commit is not a full Git SHA.")
     if not (
@@ -61,7 +66,9 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
     if manifest.get("prerelease") is not prerelease:
         raise ValueError("The release manifest prerelease flag disagrees with its version tag.")
     if (status == "draft") != prerelease:
-        raise ValueError("Draft translations require an RC tag; approved translations require a stable tag.")
+        raise ValueError(
+            "Draft translations require an RC tag; approved translations require a stable tag."
+        )
 
     checksums_path = root / "SHA256SUMS.txt"
     checksum_digests = {}
@@ -71,7 +78,10 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
             raise ValueError("The checksum file contains an invalid or duplicate entry.")
         checksum_digests[match.group(2)] = match.group(1)
     expected = set(checksum_digests)
-    if not {"release-manifest.json", "release-notes.md", "LICENSE", "TRANSLATION-NOTICE.txt"} <= expected:
+    if (
+        not {"release-manifest.json", "release-notes.md", "LICENSE", "TRANSLATION-NOTICE.txt"}
+        <= expected
+    ):
         raise ValueError("The checksum file does not cover the required release files.")
 
     items = list(root.iterdir())
@@ -86,19 +96,16 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
             raise ValueError(f"Checksum mismatch: {name}")
 
     manifest_artifacts = manifest.get("artifacts")
-    if (
-        not isinstance(manifest_artifacts, dict)
-        or set(manifest_artifacts) != expected - {"release-manifest.json"}
-    ):
+    if not isinstance(manifest_artifacts, dict) or set(manifest_artifacts) != expected - {
+        "release-manifest.json"
+    }:
         raise ValueError("The release manifest artifact inventory is invalid.")
     for name, digest in manifest_artifacts.items():
         if not isinstance(digest, str) or digest != checksum_digests.get(name):
             raise ValueError(f"Release manifest digest mismatch: {name}")
 
     overlay_files = [
-        name
-        for name in expected
-        if name.endswith(".json") and name != "release-manifest.json"
+        name for name in expected if name.endswith(".json") and name != "release-manifest.json"
     ]
     if len(overlay_files) != 1:
         raise ValueError("The JSON translation overlay is missing.")
@@ -121,7 +128,9 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
             raise ValueError("The install archive contains unexpected or duplicate members.")
         if archive.testzip() is not None:
             raise ValueError("The install archive failed its CRC check.")
-        package_manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+        package_manifest = json.loads(
+            archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json")
+        )
         archive_overlay_bytes = archive.read("BepInEx/plugins/PeglinKoreanRevised/overlay.json")
         archive_license = archive.read("LICENSE")
         archive_translation_notice = archive.read("TRANSLATION-NOTICE.txt")
@@ -182,7 +191,10 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
         raise ValueError("The install archive manifest file inventory is invalid.")
     with zipfile.ZipFile(archive_path) as archive:
         for name, digest in package_files.items():
-            if not isinstance(digest, str) or hashlib.sha256(archive.read(name)).hexdigest() != digest:
+            if (
+                not isinstance(digest, str)
+                or hashlib.sha256(archive.read(name)).hexdigest() != digest
+            ):
                 raise ValueError(f"Install archive manifest hash mismatch: {name}")
     if overlay.get("status") != status or package_manifest.get("status") != status:
         raise ValueError("Translation status disagrees across release files.")
@@ -190,9 +202,8 @@ def verify_release_artifacts(release_dir: Path, source_sha: str, release_tag: st
     if (
         not isinstance(runtime, dict)
         or runtime.get("pluginVersion") != package_runtime.get("pluginVersion")
-        or runtime.get("sha256") != package_files.get(
-            "BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"
-        )
+        or runtime.get("sha256")
+        != package_files.get("BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll")
     ):
         raise ValueError("Runtime metadata disagrees across release files.")
     return prerelease, release_tag, overlay_files[0]

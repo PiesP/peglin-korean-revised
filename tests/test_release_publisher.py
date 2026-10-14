@@ -9,8 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from test_release_artifact_verifier import ARCHIVE, ReleaseFixture, SOURCE_SHA, STANDALONE
-
+from test_release_artifact_verifier import ARCHIVE, SOURCE_SHA, STANDALONE, ReleaseFixture
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".github/scripts/publish_release.py"
@@ -43,10 +42,14 @@ class ReleasePublisherTests(unittest.TestCase):
 
     def publish(self, **changes: object) -> None:
         params = {
-            "root": self.root, "repository": "PiesP/peglin-korean-revised",
-            "source_sha": SOURCE_SHA, "tag": self.fixture.tag,
-            "tag_object_sha": "d" * 40, "prerelease": True,
-            "overlay_name": STANDALONE, "run": self.run_gh,
+            "root": self.root,
+            "repository": "PiesP/peglin-korean-revised",
+            "source_sha": SOURCE_SHA,
+            "tag": self.fixture.tag,
+            "tag_object_sha": "d" * 40,
+            "prerelease": True,
+            "overlay_name": STANDALONE,
+            "run": self.run_gh,
         }
         params.update(changes)
         publisher.publish_release(**params)
@@ -54,20 +57,39 @@ class ReleasePublisherTests(unittest.TestCase):
     def test_exact_release_arguments_and_rc_flag(self) -> None:
         self.publish()
         self.assertEqual(
-            ["gh", "api", f"repos/PiesP/peglin-korean-revised/git/ref/tags/{self.fixture.tag}",
-             "--jq", ".object.sha"],
+            [
+                "gh",
+                "api",
+                f"repos/PiesP/peglin-korean-revised/git/ref/tags/{self.fixture.tag}",
+                "--jq",
+                ".object.sha",
+            ],
             self.calls[0],
         )
         self.assertEqual(
-            ["gh", "release", "create", self.fixture.tag, "--verify-tag",
-             "--target", SOURCE_SHA, "--title", "Peglin Korean Revised v1.0.0-rc.1",
-             "--notes-file", str(self.root / "release-notes.md"), "--prerelease",
-             "--repo", "PiesP/peglin-korean-revised", str(self.root / STANDALONE),
-             str(self.root / ARCHIVE), str(self.root / "LICENSE"),
-             str(self.root / "TRANSLATION-NOTICE.txt"),
-             str(self.root / "release-notes.md"),
-             str(self.root / "release-manifest.json"),
-             str(self.root / "SHA256SUMS.txt")],
+            [
+                "gh",
+                "release",
+                "create",
+                self.fixture.tag,
+                "--verify-tag",
+                "--target",
+                SOURCE_SHA,
+                "--title",
+                "Peglin Korean Revised v1.0.0-rc.1",
+                "--notes-file",
+                str(self.root / "release-notes.md"),
+                "--prerelease",
+                "--repo",
+                "PiesP/peglin-korean-revised",
+                str(self.root / STANDALONE),
+                str(self.root / ARCHIVE),
+                str(self.root / "LICENSE"),
+                str(self.root / "TRANSLATION-NOTICE.txt"),
+                str(self.root / "release-notes.md"),
+                str(self.root / "release-manifest.json"),
+                str(self.root / "SHA256SUMS.txt"),
+            ],
             self.calls[1],
         )
 
@@ -87,8 +109,10 @@ class ReleasePublisherTests(unittest.TestCase):
 
     def test_invalid_inputs_stop_before_gh(self) -> None:
         invalid = (
-            {"source_sha": "short"}, {"tag": "other-tag"},
-            {"prerelease": False}, {"tag_object_sha": "invalid"},
+            {"source_sha": "short"},
+            {"tag": "other-tag"},
+            {"prerelease": False},
+            {"tag_object_sha": "invalid"},
             {"overlay_name": "../outside.json"},
         )
         for changes in invalid:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-
 RELEASE_TAG_PATTERN = re.compile(
     r"peglin-ko-v(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*)\."

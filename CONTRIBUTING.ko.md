@@ -136,6 +136,9 @@ Python is the primary language for handwritten repository automation. The
 `[tool.maintenance]` select dependencies and runtimes. Use the locked Python
 3.11 environment for local package commands. C# under `plugin/` is product
 code; workflow YAML, lockfiles, and generated release files are not scripts.
+Check maintained Python code before committing with `uv run --locked ruff check .`
+and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
+to apply the configured formatting.
 
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
@@ -156,7 +159,8 @@ code; workflow YAML, lockfiles, and generated release files are not scripts.
 | `python3 .github/scripts/publish_release.py` | Publication job after successful artifact verification; uses inherited `GH_TOKEN`, rechecks the annotated tag object through `gh api`, then passes the verified seven assets to `gh release create` as an argument vector. | `test_release_publisher.py` |
 
 `validate.yml` and the build job in `release-translation.yml` use locked `uv`
-for installation, compilation, test discovery and lint. The build job alone
+for installation, Python lint and formatting, compilation, test discovery and
+translation lint. The build job alone
 runs `build-release-candidate`; `upload-artifact` stores its outputs for the same
 workflow run. The eligibility job verifies the tag, latest `master` source,
 permission-confirmed contribution and exact required check. The publication

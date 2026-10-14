@@ -15,7 +15,6 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".github/scripts/verify_release_artifacts.py"
 SOURCE_SHA = "a" * 40
@@ -54,30 +53,47 @@ class ReleaseFixture:
             "assetSha256": "b" * 64,
         }
         self.overlay = {
-            "kind": "peglin-korean-overlay", "game": "Peglin", "language": "ko",
-            "status": status, "source": source, "terms": {"Test": "테스트"},
+            "kind": "peglin-korean-overlay",
+            "game": "Peglin",
+            "language": "ko",
+            "status": status,
+            "source": source,
+            "terms": {"Test": "테스트"},
         }
         self.plugin_bytes = b"synthetic plugin fixture"
         self.package = {
-            "kind": "peglin-korean-client-candidate", "game": "Peglin",
-            "steamAppId": "1296610", "language": "ko", "status": status,
-            "translationCount": 1, "source": source,
+            "kind": "peglin-korean-client-candidate",
+            "game": "Peglin",
+            "steamAppId": "1296610",
+            "language": "ko",
+            "status": status,
+            "translationCount": 1,
+            "source": source,
             "runtime": {"pluginVersion": "0.1.2", "assemblyCSharpSha256": "c" * 64},
             "files": {PLUGIN: digest(self.plugin_bytes), OVERLAY: digest(encoded(self.overlay))},
         }
         self.members = {
-            PLUGIN: self.plugin_bytes, OVERLAY: encoded(self.overlay),
-            PACKAGE: encoded(self.package), "README.md": b"Synthetic install notice\n",
+            PLUGIN: self.plugin_bytes,
+            OVERLAY: encoded(self.overlay),
+            PACKAGE: encoded(self.package),
+            "README.md": b"Synthetic install notice\n",
             "LICENSE": b"Synthetic license\n",
             "TRANSLATION-NOTICE.txt": b"Synthetic translation notice\n",
         }
         self.manifest = {
-            "schemaVersion": 2, "kind": "peglin-korean-release-provenance",
-            "game": "Peglin", "steamAppId": "1296610", "language": "ko",
-            "sourceRevision": SOURCE_SHA, "releaseTag": self.tag,
-            "status": status, "prerelease": prerelease, "translationCount": 1,
+            "schemaVersion": 2,
+            "kind": "peglin-korean-release-provenance",
+            "game": "Peglin",
+            "steamAppId": "1296610",
+            "language": "ko",
+            "sourceRevision": SOURCE_SHA,
+            "releaseTag": self.tag,
+            "status": status,
+            "prerelease": prerelease,
+            "translationCount": 1,
             "source": {
-                "steamBuildId": "123", "unityVersion": "2022.3.62f2",
+                "steamBuildId": "123",
+                "unityVersion": "2022.3.62f2",
                 "resourcesAssetsSha256": "b" * 64,
                 "assemblyCSharpSha256": "c" * 64,
             },
@@ -90,7 +106,8 @@ class ReleaseFixture:
         self.members[OVERLAY] = encoded(self.overlay)
         self.members[PACKAGE] = encoded(self.package)
         files = {
-            STANDALONE: encoded(self.overlay), ARCHIVE: archive_bytes(self.members),
+            STANDALONE: encoded(self.overlay),
+            ARCHIVE: archive_bytes(self.members),
             "release-notes.md": b"Synthetic release notes\n",
             "LICENSE": self.members["LICENSE"],
             "TRANSLATION-NOTICE.txt": self.members["TRANSLATION-NOTICE.txt"],
@@ -105,7 +122,6 @@ class ReleaseFixture:
             (self.root / name).write_bytes(contents)
 
 
-
 class ReleaseArtifactVerifierTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -116,15 +132,24 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def run_verifier(self, *, source: str = SOURCE_SHA, tag: str | None = None) -> subprocess.CompletedProcess[str]:
+    def run_verifier(
+        self, *, source: str = SOURCE_SHA, tag: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
-        env.update({
-            "RELEASE_DIR": str(self.root), "SOURCE_SHA": source,
-            "RELEASE_TAG": tag or self.fixture.tag, "GITHUB_OUTPUT": str(self.output),
-        })
+        env.update(
+            {
+                "RELEASE_DIR": str(self.root),
+                "SOURCE_SHA": source,
+                "RELEASE_TAG": tag or self.fixture.tag,
+                "GITHUB_OUTPUT": str(self.output),
+            }
+        )
         return subprocess.run(
             [sys.executable, str(SCRIPT)],
-            text=True, capture_output=True, env=env, check=False,
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
         )
 
     def assert_rejected(self, expected: str) -> None:
@@ -179,8 +204,14 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
         self.assert_rejected("Expecting property name")
         cases = (
             (lambda f: f.overlay.__setitem__("status", "approved"), "Translation status disagrees"),
-            (lambda f: f.overlay.__setitem__("game", "Other"), "Game, language, or source metadata"),
-            (lambda f: f.overlay["source"].__setitem__("steamBuildId", "changed"), "Peglin source metadata"),
+            (
+                lambda f: f.overlay.__setitem__("game", "Other"),
+                "Game, language, or source metadata",
+            ),
+            (
+                lambda f: f.overlay["source"].__setitem__("steamBuildId", "changed"),
+                "Peglin source metadata",
+            ),
             (lambda f: f.manifest["runtime"].__setitem__("sha256", "f" * 64), "Runtime metadata"),
             (lambda f: f.manifest["artifacts"].pop("LICENSE"), "artifact inventory"),
         )
@@ -189,7 +220,9 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
                 self.fixture = ReleaseFixture(self.root, prerelease=True)
                 change(self.fixture)
                 if message == "artifact inventory":
-                    (self.root / "release-manifest.json").write_bytes(encoded(self.fixture.manifest))
+                    (self.root / "release-manifest.json").write_bytes(
+                        encoded(self.fixture.manifest)
+                    )
                     self._reseal_checksums()
                 else:
                     self.fixture.package["files"][OVERLAY] = digest(encoded(self.fixture.overlay))
@@ -233,9 +266,15 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
             (lambda f: f.members.update({"unexpected": b"x"}), "unexpected or duplicate members"),
             (lambda f: f.members.__setitem__(OVERLAY, b"different"), "differ"),
             (lambda f: f.members.__setitem__("LICENSE", b"different"), "MIT License differs"),
-            (lambda f: f.members.__setitem__("TRANSLATION-NOTICE.txt", b"different"), "translation notice differs"),
+            (
+                lambda f: f.members.__setitem__("TRANSLATION-NOTICE.txt", b"different"),
+                "translation notice differs",
+            ),
             (lambda f: f.package.__setitem__("translationCount", 2), "Translation counts disagree"),
-            (lambda f: f.package["runtime"].__setitem__("pluginVersion", "changed"), "Runtime metadata disagrees"),
+            (
+                lambda f: f.package["runtime"].__setitem__("pluginVersion", "changed"),
+                "Runtime metadata disagrees",
+            ),
             (lambda f: f.package["files"].__setitem__(PLUGIN, "f" * 64), "manifest hash mismatch"),
         )
         for change, message in changes:
@@ -287,7 +326,9 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("verify_release_artifacts", SCRIPT)
         self.assertIsNotNone(spec)
         self.assertIsNotNone(spec.loader)
-        with patch.object(subprocess, "run", side_effect=AssertionError("import invoked a process")):
+        with patch.object(
+            subprocess, "run", side_effect=AssertionError("import invoked a process")
+        ):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
         self.assertFalse(self.output.exists())
@@ -299,7 +340,9 @@ class ReleaseArtifactVerifierTests(unittest.TestCase):
         self._reseal_checksums()
 
     def _reseal_checksums(self) -> None:
-        files = (path for path in self.root.iterdir() if path.is_file() and path.name != "SHA256SUMS.txt")
+        files = (
+            path for path in self.root.iterdir() if path.is_file() and path.name != "SHA256SUMS.txt"
+        )
         (self.root / "SHA256SUMS.txt").write_text(
             "".join(f"{digest(path.read_bytes())}  {path.name}\n" for path in sorted(files)),
             encoding="ascii",

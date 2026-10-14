@@ -32,9 +32,7 @@ TRANSLATION_FIELDS = (
     "Comment",
 )
 
-_HIT_STYLE_ACTIVATION = re.compile(
-    r"<style=hit>[^<>\r\n]*활성화[^<>\r\n]*</style>"
-)
+_HIT_STYLE_ACTIVATION = re.compile(r"<style=hit>[^<>\r\n]*활성화[^<>\r\n]*</style>")
 _ORB_VARIABLE_WITH_FIXED_PARTICLE = re.compile(
     r"\[(?:var|variable)=[^\]\r\n]*orb[^\]\r\n]*\]"
     r"(?:</style>)?\s*"
@@ -42,9 +40,7 @@ _ORB_VARIABLE_WITH_FIXED_PARTICLE = re.compile(
     r"으로|로|은|는|이|가|을|를|과|와)(?![가-힣])",
     re.IGNORECASE,
 )
-_MALFORMED_SPRITE_NAME_TOKEN = re.compile(
-    r'<sprite\b[^>]*\bname="[^"]*>', re.IGNORECASE
-)
+_MALFORMED_SPRITE_NAME_TOKEN = re.compile(r'<sprite\b[^>]*\bname="[^"]*>', re.IGNORECASE)
 
 # The locked English source has these two malformed PEG sprite tags. Permit
 # only the matching Korean repair for this exact source build and fingerprint.
@@ -167,11 +163,14 @@ def _markup_is_balanced(text: str) -> bool:
 
 def _glossary_term_occurs(source_term: str, text: str) -> bool:
     """Match whole glossary terms without splitting hyphenated game names."""
-    return re.search(
-        rf"(?<![\w-]){re.escape(source_term)}(?![\w-])",
-        text,
-        re.IGNORECASE,
-    ) is not None
+    return (
+        re.search(
+            rf"(?<![\w-]){re.escape(source_term)}(?![\w-])",
+            text,
+            re.IGNORECASE,
+        )
+        is not None
+    )
 
 
 def read_terms_csv(path: Path) -> list[dict[str, str]]:
@@ -182,8 +181,7 @@ def read_terms_csv(path: Path) -> list[dict[str, str]]:
         if missing:
             raise ValueError(f"CSV is missing required columns: {', '.join(sorted(missing))}")
         return [
-            {key: value or "" for key, value in row.items() if key is not None}
-            for row in reader
+            {key: value or "" for key, value in row.items() if key is not None} for row in reader
         ]
 
 
@@ -281,9 +279,7 @@ def lint_overrides(path: Path) -> tuple[dict[str, int], list[Issue]]:
         return {"overrides": 0, "draft": 0, "approved": 0, "errors": 1}, issues
 
     if type(data.get("schemaVersion")) is not int or data.get("schemaVersion") != 1:
-        issues.append(
-            Issue("error", "INVALID_SCHEMA_VERSION", "Override schemaVersion must be 1.")
-        )
+        issues.append(Issue("error", "INVALID_SCHEMA_VERSION", "Override schemaVersion must be 1."))
     if data.get("game") != "Peglin":
         issues.append(Issue("error", "INVALID_GAME", "Override game must be Peglin."))
     if data.get("language") != "ko":
@@ -291,14 +287,10 @@ def lint_overrides(path: Path) -> tuple[dict[str, int], list[Issue]]:
 
     terms = data.get("terms")
     if not isinstance(terms, dict):
-        issues.append(
-            Issue("error", "INVALID_TERMS", "Override file must contain a terms object.")
-        )
+        issues.append(Issue("error", "INVALID_TERMS", "Override file must contain a terms object."))
         terms = {}
     elif not terms:
-        issues.append(
-            Issue("error", "EMPTY_OVERRIDES", "Override terms object must not be empty.")
-        )
+        issues.append(Issue("error", "EMPTY_OVERRIDES", "Override terms object must not be empty."))
 
     status_counts = {"draft": 0, "approved": 0}
     for key, item in terms.items():
@@ -448,10 +440,7 @@ def validate_locked_translations(
                 )
             )
         fingerprint = metadata.get("sourceFingerprint")
-        if (
-            not isinstance(fingerprint, str)
-            or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None
-        ):
+        if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
             issues.append(
                 Issue(
                     "error",
@@ -462,9 +451,7 @@ def validate_locked_translations(
             )
         translation = row["Translation"]
         if not translation.strip():
-            issues.append(
-                Issue("error", "EMPTY_OVERRIDE", "Translation must be nonempty.", term)
-            )
+            issues.append(Issue("error", "EMPTY_OVERRIDE", "Translation must be nonempty.", term))
         status = row["Status"]
         if status not in status_counts:
             issues.append(
@@ -554,9 +541,7 @@ def validate_locked_translations(
             )
 
         if row["_file"] == "dialogue-system.csv":
-            particle_matches = list(
-                _ORB_VARIABLE_WITH_FIXED_PARTICLE.finditer(translation)
-            )
+            particle_matches = list(_ORB_VARIABLE_WITH_FIXED_PARTICLE.finditer(translation))
             if particle_matches:
                 particles = ", ".join(
                     sorted({match.group("particle") for match in particle_matches})
@@ -592,9 +577,7 @@ def validate_locked_translations(
         if not isinstance(protected, list):
             continue
         for token in protected:
-            if isinstance(token, str) and _MALFORMED_SPRITE_NAME_TOKEN.fullmatch(
-                token
-            ):
+            if isinstance(token, str) and _MALFORMED_SPRITE_NAME_TOKEN.fullmatch(token):
                 issues.append(
                     Issue(
                         "warning",
@@ -633,9 +616,7 @@ def validate_locked_translations(
     }, issues
 
 
-def _check_translation(
-    source: str, translation: str, term: str, source_name: str
-) -> list[Issue]:
+def _check_translation(source: str, translation: str, term: str, source_name: str) -> list[Issue]:
     if not translation:
         return []
     issues: list[Issue] = []
@@ -697,7 +678,9 @@ def validate(
             issues.append(Issue("error", "EMPTY_TERM", f"CSV row {row_number} has no term key."))
             continue
         if raw_key != key:
-            issues.append(Issue("error", "PADDED_TERM", "Term key has leading or trailing whitespace.", key))
+            issues.append(
+                Issue("error", "PADDED_TERM", "Term key has leading or trailing whitespace.", key)
+            )
             continue
         if key in by_term:
             issues.append(Issue("error", "DUPLICATE_TERM", "Term key occurs more than once.", key))
@@ -721,10 +704,21 @@ def validate(
                 preferred = (item.get("PreferredKorean") or "").strip()
                 if not key or not preferred:
                     issues.append(
-                        Issue("error", "INVALID_GLOSSARY_ROW", f"Glossary row {row_number} needs Term and PreferredKorean.")
+                        Issue(
+                            "error",
+                            "INVALID_GLOSSARY_ROW",
+                            f"Glossary row {row_number} needs Term and PreferredKorean.",
+                        )
                     )
                 elif key in glossary_seen:
-                    issues.append(Issue("error", "DUPLICATE_GLOSSARY_TERM", "Glossary term occurs more than once.", key))
+                    issues.append(
+                        Issue(
+                            "error",
+                            "DUPLICATE_GLOSSARY_TERM",
+                            "Glossary term occurs more than once.",
+                            key,
+                        )
+                    )
                 else:
                     glossary_seen.add(key)
                     glossary.append({"Term": key, "PreferredKorean": preferred})
@@ -735,9 +729,7 @@ def validate(
                 continue
             for entry in glossary:
                 source_term = entry["Term"]
-                source_contains_term = _glossary_term_occurs(
-                    source_term, row.get("English", "")
-                )
+                source_contains_term = _glossary_term_occurs(source_term, row.get("English", ""))
                 if source_contains_term and entry["PreferredKorean"] not in translation:
                     issues.append(
                         Issue(
@@ -788,28 +780,55 @@ def validate(
         for key, item in overrides.items():
             override_count += 1
             if not isinstance(key, str) or not isinstance(item, dict):
-                issues.append(Issue("error", "INVALID_OVERRIDE", "Each override must be an object.", str(key)))
+                issues.append(
+                    Issue("error", "INVALID_OVERRIDE", "Each override must be an object.", str(key))
+                )
                 continue
             row = by_term.get(key)
             if row is None:
-                issues.append(Issue("error", "UNKNOWN_OVERRIDE_TERM", "Override term is absent from this source snapshot.", key))
+                issues.append(
+                    Issue(
+                        "error",
+                        "UNKNOWN_OVERRIDE_TERM",
+                        "Override term is absent from this source snapshot.",
+                        key,
+                    )
+                )
                 continue
             translation = item.get("translation")
             status = item.get("status")
             if not isinstance(translation, str) or not translation.strip():
-                issues.append(Issue("error", "EMPTY_OVERRIDE", "Override translation must be nonempty.", key))
+                issues.append(
+                    Issue("error", "EMPTY_OVERRIDE", "Override translation must be nonempty.", key)
+                )
                 continue
             if not isinstance(status, str) or status not in {"draft", "approved"}:
-                issues.append(Issue("error", "INVALID_OVERRIDE_STATUS", "Override status must be draft or approved.", key))
+                issues.append(
+                    Issue(
+                        "error",
+                        "INVALID_OVERRIDE_STATUS",
+                        "Override status must be draft or approved.",
+                        key,
+                    )
+                )
             expected_fingerprint = item.get("sourceFingerprint")
             actual_fingerprint = source_fingerprint(row)
             if not isinstance(expected_fingerprint, str):
                 severity = "error" if status == "approved" else "warning"
-                issues.append(Issue(severity, "OVERRIDE_UNBOUND", "Override has no sourceFingerprint.", key))
+                issues.append(
+                    Issue(severity, "OVERRIDE_UNBOUND", "Override has no sourceFingerprint.", key)
+                )
             elif expected_fingerprint != actual_fingerprint:
                 stale_override_count += 1
                 severity = "error" if status == "approved" else "warning"
-                issues.append(Issue(severity, "OVERRIDE_STALE", "English or translator notes changed since review.", key))
+                issues.append(
+                    Issue(
+                        severity,
+                        "OVERRIDE_STALE",
+                        "English or translator notes changed since review.",
+                        key,
+                    )
+                )
 
             if status == "approved":
                 reviewed_build_id = item.get("reviewedBuildId")
@@ -853,9 +872,7 @@ def validate(
         "missingOfficialKoreanWithEnglish": int(empty_official),
         "identicalEnglishAndOfficialKorean": int(identical),
         "termsWithDevNotes": int(dev_notes),
-        "nonEmptyDevNoteFields": sum(
-            bool(row.get("DevNotes", "")) for row in by_term.values()
-        ),
+        "nonEmptyDevNoteFields": sum(bool(row.get("DevNotes", "")) for row in by_term.values()),
         "overrides": override_count,
         "staleOverrides": stale_override_count,
         "errors": sum(issue.severity == "error" for issue in issues),

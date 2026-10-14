@@ -21,7 +21,6 @@ from .source_lock import (
     validate_runtime_provenance,
 )
 
-
 REVISION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 
 
@@ -60,9 +59,7 @@ def _release_notes(
         else "번역 데이터는 승인 상태입니다. 이 상태가 모든 화면을 대상으로 한 전체 플레이 검수를 "
         "뜻하지는 않습니다.\n\n"
     )
-    release_url = (
-        "https://github.com/PiesP/peglin-korean-revised/releases/tag/" + release_tag
-    )
+    release_url = "https://github.com/PiesP/peglin-korean-revised/releases/tag/" + release_tag
     return (
         f"# Peglin Korean Revised {release_tag.removeprefix('peglin-ko-')}\n\n"
         f"- 릴리스 태그: `{release_tag}`\n"
@@ -139,9 +136,7 @@ def build_release_candidate(
     _write_bytes_atomically(translation_notice_path, translation_notice_bytes)
 
     notes_path = output_dir / "release-notes.md"
-    notes_bytes = _release_notes(
-        release_tag, source_revision, source_lock, overlay["status"]
-    )
+    notes_bytes = _release_notes(release_tag, source_revision, source_lock, overlay["status"])
     _write_bytes_atomically(notes_path, notes_bytes)
 
     artifacts = {
@@ -176,9 +171,9 @@ def build_release_candidate(
     artifacts[manifest_path.name] = sha256_file(manifest_path)
 
     checksums_path = output_dir / "SHA256SUMS.txt"
-    checksums = "".join(
-        f"{digest}  {name}\n" for name, digest in sorted(artifacts.items())
-    ).encode("ascii")
+    checksums = "".join(f"{digest}  {name}\n" for name, digest in sorted(artifacts.items())).encode(
+        "ascii"
+    )
     _write_bytes_atomically(checksums_path, checksums)
     return {
         "overlay": overlay_path,

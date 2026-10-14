@@ -7,7 +7,6 @@ import re
 import tomllib
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -17,9 +16,13 @@ def resolve_toolchains(path: Path) -> tuple[str, str]:
     maintenance = config.get("tool", {}).get("maintenance", {})
     python = maintenance.get("python")
     uv = maintenance.get("uv")
-    if not isinstance(python, str) or not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", python):
+    if not isinstance(python, str) or not re.fullmatch(
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", python
+    ):
         raise ValueError("tool.maintenance.python must be a numeric major.minor version")
-    if not isinstance(uv, str) or not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", uv):
+    if not isinstance(uv, str) or not re.fullmatch(
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", uv
+    ):
         raise ValueError("tool.maintenance.uv must be a numeric major.minor.patch version")
     return python, uv
 

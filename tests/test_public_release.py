@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import csv
 import copy
+import csv
 import hashlib
 import io
 import json
@@ -239,9 +239,7 @@ class TranslationDirectoryTests(unittest.TestCase):
             },
             "terms": lock_terms,
         }
-        (self.terms.parent / "source-lock.json").write_text(
-            json.dumps(lock), encoding="utf-8"
-        )
+        (self.terms.parent / "source-lock.json").write_text(json.dumps(lock), encoding="utf-8")
 
         summary, issues = validate_locked_translations(self.terms, lock)
         warnings = [issue for issue in issues if issue.severity == "warning"]
@@ -277,22 +275,22 @@ class TranslationDirectoryTests(unittest.TestCase):
             (
                 "Relics/lifesteal_peg_hit_desc",
                 "5035aeae4c2eb68887b2bdc7c243933b342b9a979c540dee2b2551ac440cc894",
-                '<style=heal2>Steal</style> <style=damage>1 health</style> '
-                'from the targeted enemy for every {[INFERNAL_PEGS]} '
+                "<style=heal2>Steal</style> <style=damage>1 health</style> "
+                "from the targeted enemy for every {[INFERNAL_PEGS]} "
                 '<sprite name="PEG> <style=activate>Activated</style>.',
-                '<style=heal2>흡수</style> <style=damage>체력 1</style> '
-                'from the targeted enemy for every {[INFERNAL_PEGS]} '
+                "<style=heal2>흡수</style> <style=damage>체력 1</style> "
+                "from the targeted enemy for every {[INFERNAL_PEGS]} "
                 '<sprite name="PEG"> <style=activate>활성화</style>.',
             ),
             (
                 "Relics/mental_mantle_desc",
                 "b20efa66db9d16dc666ea54a606f383891a4cce05ec0897e0a93caa40c5c2a57",
-                'Immediately deal <style=damage>1 damage</style> to the targeted '
+                "Immediately deal <style=damage>1 damage</style> to the targeted "
                 'enemy for every {[DAMAGE_ON_PEG_COUNT]} <sprite name="PEG> '
-                '<style=activate>Activated</style>.',
-                'Immediately deal <style=damage>1 damage</style> to the targeted '
+                "<style=activate>Activated</style>.",
+                "Immediately deal <style=damage>1 damage</style> to the targeted "
                 'enemy for every {[DAMAGE_ON_PEG_COUNT]} <sprite name="PEG"> '
-                '<style=activate>활성화</style>.',
+                "<style=activate>활성화</style>.",
             ),
         ]
         rows = []
@@ -342,11 +340,7 @@ class TranslationDirectoryTests(unittest.TestCase):
                 self.assertEqual(len(expected_terms), summary["errors"])
                 self.assertEqual(
                     expected_terms,
-                    {
-                        issue.term
-                        for issue in issues
-                        if issue.code == "PROTECTED_TOKEN_MISMATCH"
-                    },
+                    {issue.term for issue in issues if issue.code == "PROTECTED_TOKEN_MISMATCH"},
                 )
 
     def test_glossary_does_not_split_hyphenated_game_names(self) -> None:
@@ -417,9 +411,7 @@ class TranslationDirectoryTests(unittest.TestCase):
         )
 
         _, issues = validate(terms_path, glossary_path, overrides_path)
-        glossary_mismatches = [
-            issue.term for issue in issues if issue.code == "GLOSSARY_MISMATCH"
-        ]
+        glossary_mismatches = [issue.term for issue in issues if issue.code == "GLOSSARY_MISMATCH"]
         self.assertEqual(["Orbs/orb_bonus_desc"], glossary_mismatches)
 
 
@@ -443,12 +435,10 @@ class ReleasePackagingTests(unittest.TestCase):
         plugin_sources = {
             "plugin/NuGet.Config": "<configuration />\n",
             "plugin/PeglinKoreanRevised.csproj": (
-                "<Project><PropertyGroup><Version>0.1.2</Version>"
-                "</PropertyGroup></Project>\n"
+                "<Project><PropertyGroup><Version>0.1.2</Version></PropertyGroup></Project>\n"
             ),
             "plugin/Plugin.cs": (
-                'namespace Test { [BepInPlugin("id", "name", "0.1.2")] '
-                "public class Plugin {} }\n"
+                'namespace Test { [BepInPlugin("id", "name", "0.1.2")] public class Plugin {} }\n'
             ),
             "plugin/packages.lock.json": "{}\n",
         }
@@ -458,9 +448,7 @@ class ReleasePackagingTests(unittest.TestCase):
         plugin.write_bytes(b"test-plugin")
         terms = self.root / "translation" / "terms" / "general.csv"
         with terms.open("w", encoding="utf-8", newline="") as stream:
-            writer = csv.DictWriter(
-                stream, fieldnames=TRANSLATION_FIELDS, lineterminator="\n"
-            )
+            writer = csv.DictWriter(stream, fieldnames=TRANSLATION_FIELDS, lineterminator="\n")
             writer.writeheader()
             writer.writerow(
                 {
@@ -487,9 +475,7 @@ class ReleasePackagingTests(unittest.TestCase):
                 "path": "runtime/PeglinKoreanRevised.dll",
                 "pluginVersion": "0.1.2",
                 "sha256": hashlib.sha256(plugin.read_bytes()).hexdigest(),
-                "sourceInputsSha256": plugin_source_inputs_sha256(
-                    self.root, self.plugin_inputs
-                ),
+                "sourceInputsSha256": plugin_source_inputs_sha256(self.root, self.plugin_inputs),
             },
             "terms": {
                 "Damage": {
@@ -567,9 +553,7 @@ class ReleasePackagingTests(unittest.TestCase):
         candidate_name = next(name for name in first_files if name.endswith(".zip"))
         with zipfile.ZipFile(first / candidate_name) as archive:
             package_manifest = json.loads(
-                archive.read(
-                    "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
-                )
+                archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json")
             )
             package_readme = archive.read("README.md").decode("utf-8")
             self.assertEqual(first_files["LICENSE"], archive.read("LICENSE"))
@@ -635,9 +619,7 @@ class ReleasePackagingTests(unittest.TestCase):
             )
 
     def test_release_rejects_tracked_plugin_drift(self) -> None:
-        (self.root / "runtime" / "PeglinKoreanRevised.dll").write_bytes(
-            b"changed-plugin"
-        )
+        (self.root / "runtime" / "PeglinKoreanRevised.dll").write_bytes(b"changed-plugin")
         with self.assertRaisesRegex(ValueError, "plugin hash"):
             build_release_candidate(
                 self.root / "translation" / "terms",
@@ -652,9 +634,7 @@ class ReleasePackagingTests(unittest.TestCase):
     def test_repository_source_lock_contains_only_safe_term_metadata(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         lock = json.loads(
-            (repository_root / "translation" / "source-lock.json").read_text(
-                encoding="utf-8"
-            )
+            (repository_root / "translation" / "source-lock.json").read_text(encoding="utf-8")
         )
         self.assertEqual(1899, len(lock["terms"]))
         for metadata in lock["terms"].values():

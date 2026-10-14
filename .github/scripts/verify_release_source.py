@@ -13,7 +13,6 @@ sys.path.insert(0, str(SOURCE_ROOT))
 
 from peglin_l10n.release_tag import is_release_tag  # noqa: E402
 
-
 ADMIN_LOGIN = "piesp"
 GITHUB_ACTIONS_APP_ID = 15368
 REQUIRED_CHECK_NAME = "validate"
@@ -30,9 +29,11 @@ def github_api(repository: str, endpoint: str, *, paginate: bool = False) -> Any
 
 
 def has_rights_confirmation(body: object) -> bool:
-    return isinstance(body, str) and re.search(
-        rf"(?im)^\s*-\s*\[x\]\s*{re.escape(RIGHTS_CONFIRMATION)}\s*$", body
-    ) is not None
+    return (
+        isinstance(body, str)
+        and re.search(rf"(?im)^\s*-\s*\[x\]\s*{re.escape(RIGHTS_CONFIRMATION)}\s*$", body)
+        is not None
+    )
 
 
 def has_successful_required_check(repository: str, head_sha: str) -> bool:
@@ -141,14 +142,10 @@ def verified_pull_requests(
             continue
 
         if author["login"].casefold() == ADMIN_LOGIN:
-            verified.append(
-                (pull_request, "administrator-authored and manually merged")
-            )
+            verified.append((pull_request, "administrator-authored and manually merged"))
             continue
 
-        review_pages = github_api(
-            repository, f"pulls/{number}/reviews", paginate=True
-        )
+        review_pages = github_api(repository, f"pulls/{number}/reviews", paginate=True)
         if not isinstance(review_pages, list) or any(
             not isinstance(page, list) for page in review_pages
         ):
@@ -160,8 +157,7 @@ def verified_pull_requests(
             if isinstance(review, dict)
             and isinstance(review.get("user"), dict)
             and str(review["user"].get("login", "")).casefold() == ADMIN_LOGIN
-            and review.get("state")
-            in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+            and review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
         ]
         latest_review = max(
             administrator_reviews,
@@ -270,9 +266,7 @@ def write_result(
         output.write(f"source_sha={source_sha}\n")
         output.write(f"release_tag={release_tag}\n")
         output.write(f"tag_object_sha={tag_object_sha}\n")
-    with Path(os.environ["GITHUB_STEP_SUMMARY"]).open(
-        "a", encoding="utf-8"
-    ) as report:
+    with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as report:
         report.write(summary + "\n")
 
 
@@ -314,18 +308,12 @@ def verify_release_source() -> None:
         )
         return
 
-    associated_pull_requests = github_api(
-        repository, f"commits/{resolved_source_sha}/pulls"
-    )
+    associated_pull_requests = github_api(repository, f"commits/{resolved_source_sha}/pulls")
     if not isinstance(associated_pull_requests, list):
         raise SystemExit("GitHub returned an invalid pull request list.")
-    pull_requests = load_associated_pull_requests(
-        repository, associated_pull_requests
-    )
+    pull_requests = load_associated_pull_requests(repository, associated_pull_requests)
 
-    verified_prs = verified_pull_requests(
-        repository, resolved_source_sha, pull_requests
-    )
+    verified_prs = verified_pull_requests(repository, resolved_source_sha, pull_requests)
     if verified_prs:
         if not has_successful_required_check(repository, resolved_source_sha):
             write_result(
@@ -338,8 +326,7 @@ def verify_release_source() -> None:
             )
             return
         descriptions = ", ".join(
-            f"PR #{pull_request['number']} ({method})"
-            for pull_request, method in verified_prs
+            f"PR #{pull_request['number']} ({method})" for pull_request, method in verified_prs
         )
         write_result(
             True,
@@ -359,16 +346,8 @@ def verify_release_source() -> None:
     )
     if not has_associated_master_pr:
         source_commit = github_api(repository, f"commits/{resolved_source_sha}")
-        commit_details = (
-            source_commit.get("commit")
-            if isinstance(source_commit, dict)
-            else None
-        )
-        parents = (
-            source_commit.get("parents")
-            if isinstance(source_commit, dict)
-            else None
-        )
+        commit_details = source_commit.get("commit") if isinstance(source_commit, dict) else None
+        parents = source_commit.get("parents") if isinstance(source_commit, dict) else None
         if (
             not isinstance(source_commit, dict)
             or source_commit.get("sha") != resolved_source_sha
