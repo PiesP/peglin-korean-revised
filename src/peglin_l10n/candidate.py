@@ -13,6 +13,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .source_lock import sha256_file
+
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _PLUGIN_GUID = "piesp.peglin.koreanrevised"
@@ -44,14 +46,6 @@ def _run_dotnet(command: list[str], project_dir: Path) -> None:
         )
         tail = "\n".join(output.splitlines()[-80:])
         raise ValueError(f"Plugin build command failed with exit code {result.returncode}:\n{tail}")
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _candidate_readme(overlay: dict[str, Any]) -> str:
@@ -357,12 +351,12 @@ def create_client_candidate(
         raise ValueError("Overlay source steamBuildId is invalid.")
     if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
         raise ValueError("Overlay source assetSha256 is invalid.")
-    installed_asset_sha256 = _sha256_file(game_asset)
+    installed_asset_sha256 = sha256_file(game_asset)
     if installed_asset_sha256 != asset_sha256:
         raise ValueError(
             "Overlay source asset hash does not match the installed Peglin resources.assets."
         )
-    installed_assembly_sha256 = _sha256_file(game_assembly)
+    installed_assembly_sha256 = sha256_file(game_assembly)
 
     project_dir = plugin_project.parent
     package_config = project_dir / "NuGet.Config"
@@ -409,9 +403,9 @@ def create_client_candidate(
     if not plugin_dll.is_file():
         raise ValueError(f"Plugin build did not produce its DLL: {plugin_dll}")
 
-    if _sha256_file(game_asset) != installed_asset_sha256:
+    if sha256_file(game_asset) != installed_asset_sha256:
         raise ValueError("Peglin resources.assets changed while building the client candidate.")
-    if _sha256_file(game_assembly) != installed_assembly_sha256:
+    if sha256_file(game_assembly) != installed_assembly_sha256:
         raise ValueError("Peglin Assembly-CSharp.dll changed while building the client candidate.")
 
     return _package_candidate(
