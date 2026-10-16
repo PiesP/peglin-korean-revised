@@ -345,12 +345,7 @@ def create_client_candidate(
 
     overlay = _read_overlay(overlay_path)
     source = overlay["source"]
-    build_id = source.get("steamBuildId")
     asset_sha256 = source.get("assetSha256")
-    if not isinstance(build_id, str) or _BUILD_ID_PATTERN.fullmatch(build_id) is None:
-        raise ValueError("Overlay source steamBuildId is invalid.")
-    if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
-        raise ValueError("Overlay source assetSha256 is invalid.")
     installed_asset_sha256 = sha256_file(game_asset)
     if installed_asset_sha256 != asset_sha256:
         raise ValueError(
