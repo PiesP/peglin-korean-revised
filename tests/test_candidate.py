@@ -85,6 +85,9 @@ class ClientCandidateTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def _write_overlay(self, overlay: dict[str, object]) -> None:
+        self.overlay.write_text(json.dumps(overlay, ensure_ascii=False) + "\n", encoding="utf-8")
+
     def _build(self, changed_file: Path | None = None) -> Path:
         def fake_dotnet(command: list[str], project_dir: Path) -> None:
             self.assertEqual(self.project.parent, project_dir)
@@ -122,6 +125,142 @@ class ClientCandidateTests(unittest.TestCase):
             )
         self.assertEqual(first_bytes, self._build().read_bytes())
         self.assertEqual(["restore", "build", "restore", "build"], self.commands)
+
+    def test_invalid_source_fields_reject_before_build_without_replacing_output(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        output = self.root / "output"
+        output.mkdir()
+        existing = output / "existing.zip"
+        existing.write_bytes(b"existing candidate")
+        cases = (
+            ("missing build ID", "steamBuildId", None, "steamBuildId is invalid"),
+            ("wrong build ID type", "steamBuildId", 123, "steamBuildId is invalid"),
+            ("malformed build ID", "steamBuildId", "bad id", "steamBuildId is invalid"),
+            ("missing asset hash", "assetSha256", None, "assetSha256 is invalid"),
+            ("wrong asset hash type", "assetSha256", 123, "assetSha256 is invalid"),
+            ("short asset hash", "assetSha256", "a" * 63, "assetSha256 is invalid"),
+            ("uppercase asset hash", "assetSha256", "A" * 64, "assetSha256 is invalid"),
+        )
+        for label, field, value, error in cases:
+            with self.subTest(label=label):
+                overlay = json.loads(json.dumps(original))
+                if value is None:
+                    del overlay["source"][field]
+                else:
+                    overlay["source"][field] = value
+                self._write_overlay(overlay)
+                self.commands.clear()
+                with self.assertRaisesRegex(ValueError, f"Overlay source {error}"):
+                    self._build()
+                self.assertEqual([], self.commands)
+                self.assertEqual([existing], list(output.iterdir()))
+                self.assertEqual(b"existing candidate", existing.read_bytes())
+
+    def test_prebuilt_accepts_supported_source_format_boundaries(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        self.plugin.parent.mkdir(parents=True)
+        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+        cases = (("a", "0" * 64), ("A._-9" * 12 + "A._-", "abcdef" * 10 + "abcd"))
+        for build_id, asset_hash in cases:
+            with self.subTest(build_id=build_id):
+                overlay = json.loads(json.dumps(original))
+                overlay["source"]["steamBuildId"] = build_id
+                overlay["source"]["assetSha256"] = asset_hash
+                self._write_overlay(overlay)
+                archive = candidate.create_prebuilt_client_candidate(
+                    self.overlay,
+                    self.root / "prebuilt",
+                    self.plugin,
+                    hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+                    self.root,
+                )
+                self.assertTrue(archive.is_file())
+                self.assertIn(build_id, archive.name)
+
+    def test_prebuilt_revalidates_overlay_before_replacing_output(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        self.plugin.parent.mkdir(parents=True)
+        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+        output = self.root / "prebuilt"
+        output.mkdir()
+        existing = output / "existing.zip"
+        existing.write_bytes(b"existing candidate")
+        for field, value, error in (
+            ("steamBuildId", "bad id", "steamBuildId is invalid"),
+            ("assetSha256", "A" * 64, "assetSha256 is invalid"),
+        ):
+            with self.subTest(field=field):
+                overlay = json.loads(json.dumps(original))
+                overlay["source"][field] = value
+                self._write_overlay(overlay)
+                with self.assertRaisesRegex(ValueError, f"Overlay source {error}"):
+                    candidate.create_prebuilt_client_candidate(
+                        self.overlay,
+                        output,
+                        self.plugin,
+                        hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+                        self.root,
+                    )
+                self.assertEqual([existing], list(output.iterdir()))
+                self.assertEqual(b"existing candidate", existing.read_bytes())
+
+    def test_prebuilt_keeps_source_terms_status_and_json_checks(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        self.plugin.parent.mkdir(parents=True)
+        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+        for field, value, error in (
+            ("source", None, "source metadata and translation terms are required"),
+            ("terms", {}, "source metadata and translation terms are required"),
+            ("status", "unreviewed", "status must be draft or approved"),
+        ):
+            with self.subTest(field=field):
+                overlay = json.loads(json.dumps(original))
+                overlay[field] = value
+                self._write_overlay(overlay)
+                with self.assertRaisesRegex(ValueError, error):
+                    candidate.create_prebuilt_client_candidate(
+                        self.overlay,
+                        self.root / "prebuilt",
+                        self.plugin,
+                        hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+                        self.root,
+                    )
+                self.assertFalse((self.root / "prebuilt").exists())
+
+        self.overlay.write_text("{invalid json", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Could not read overlay JSON"):
+            candidate.create_prebuilt_client_candidate(
+                self.overlay,
+                self.root / "prebuilt",
+                self.plugin,
+                hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+                self.root,
+            )
+        self.assertFalse((self.root / "prebuilt").exists())
+
+    def test_overlay_changed_during_build_is_revalidated_before_packaging(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+
+        def fake_dotnet(command: list[str], project_dir: Path) -> None:
+            self.assertEqual(self.project.parent, project_dir)
+            self.commands.append(command[1])
+            if command[1] == "build":
+                self.plugin.parent.mkdir(parents=True, exist_ok=True)
+                self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                original["source"]["assetSha256"] = "A" * 64
+                self._write_overlay(original)
+
+        with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+            with self.assertRaisesRegex(ValueError, "Overlay source assetSha256 is invalid"):
+                candidate.create_client_candidate(
+                    self.overlay,
+                    self.game,
+                    self.root / "output",
+                    self.project,
+                    project_root=self.root,
+                )
+        self.assertEqual(["restore", "build"], self.commands)
+        self.assertFalse((self.root / "output").exists())
 
     def test_initial_asset_mismatch_rejects_before_build(self) -> None:
         self.asset.write_bytes(b"different fixture resources")
