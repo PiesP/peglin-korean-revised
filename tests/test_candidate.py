@@ -107,6 +107,186 @@ class ClientCandidateTests(unittest.TestCase):
                 project_root=self.root,
             )
 
+    def _prebuilt(self, output: Path) -> Path:
+        self.plugin.parent.mkdir(parents=True, exist_ok=True)
+        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+        return candidate.create_prebuilt_client_candidate(
+            self.overlay,
+            output,
+            self.plugin,
+            hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+            self.root,
+        )
+
+    def test_prebuilt_packages_the_validated_overlay_snapshot_after_path_replacement(self) -> None:
+        original_bytes = self.overlay.read_bytes()
+        original = json.loads(original_bytes)
+        overlay_member = "BepInEx/plugins/PeglinKoreanRevised/overlay.json"
+        manifest_member = "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+
+        for label, replacement in (
+            (
+                "valid",
+                {
+                    **original,
+                    "status": "approved",
+                    "source": {**original["source"], "steamBuildId": "new-build"},
+                    "terms": {"Other/Term": "다른 문구", "Extra/Term": "추가 문구"},
+                },
+            ),
+            ("wrong language", {**original, "language": "en"}),
+        ):
+            with self.subTest(label=label):
+                self.overlay.write_bytes(original_bytes)
+                replacement_bytes = (json.dumps(replacement, ensure_ascii=False) + "\n").encode(
+                    "utf-8"
+                )
+                reads = 0
+                original_open = Path.open
+                overlay_path = self.overlay
+
+                class InterleavingReader:
+                    def __init__(self, stream: object) -> None:
+                        self.stream = stream
+
+                    def __enter__(self) -> InterleavingReader:
+                        return self
+
+                    def __exit__(self, *args: object) -> None:
+                        self.stream.close()
+
+                    def read(self, *args: object) -> object:
+                        nonlocal reads
+                        contents = self.stream.read(*args)
+                        reads += 1
+                        if reads == 1:
+                            overlay_path.write_bytes(replacement_bytes)
+                        return contents
+
+                def interleaved_open(path: Path, *args: object, **kwargs: object) -> object:
+                    stream = original_open(path, *args, **kwargs)
+                    mode = kwargs.get("mode", args[0] if args else "r")
+                    if path == overlay_path and mode in {"r", "rb"}:
+                        return InterleavingReader(stream)
+                    return stream
+
+                with patch.object(Path, "open", interleaved_open):
+                    archive_path = self._prebuilt(self.root / f"prebuilt-{label}")
+                with zipfile.ZipFile(archive_path) as archive:
+                    self.assertEqual(sorted(archive.namelist()), archive.namelist())
+                    self.assertEqual(6, len(archive.namelist()))
+                    archived_bytes = archive.read(overlay_member)
+                    manifest = json.loads(archive.read(manifest_member))
+                    readme = archive.read("README.md").decode("utf-8")
+                self.assertEqual(original_bytes, archived_bytes)
+                self.assertEqual(1, reads)
+                self.assertEqual(
+                    hashlib.sha256(original_bytes).hexdigest(), manifest["files"][overlay_member]
+                )
+                self.assertEqual("fixture-build", manifest["source"]["steamBuildId"])
+                self.assertEqual("draft", manifest["status"])
+                self.assertEqual(1, manifest["translationCount"])
+                self.assertIn("fixture-build", readme)
+                self.assertIn("번역 상태: 초안입니다", readme)
+                self.assertEqual(
+                    f"PeglinKoreanRevised-fixture-build-{original['source']['assetSha256'][:8]}.zip",
+                    archive_path.name,
+                )
+
+    def test_prebuilt_preserves_overlay_formatting_and_korean_bytes(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        overlay_member = "BepInEx/plugins/PeglinKoreanRevised/overlay.json"
+        manifest_member = "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+        for newline in ("\n", "\r\n"):
+            with self.subTest(newline=repr(newline)):
+                formatted = (json.dumps(original, ensure_ascii=False, indent=2) + "\n").replace(
+                    "\n", newline
+                )
+                expected_bytes = formatted.encode("utf-8")
+                self.overlay.write_bytes(expected_bytes)
+                archive_path = self._prebuilt(self.root / f"formatted-{len(newline)}")
+                first_zip_bytes = archive_path.read_bytes()
+                with zipfile.ZipFile(archive_path) as archive:
+                    self.assertEqual(expected_bytes, archive.read(overlay_member))
+                    manifest = json.loads(archive.read(manifest_member))
+                    self.assertEqual(
+                        hashlib.sha256(expected_bytes).hexdigest(),
+                        manifest["files"][overlay_member],
+                    )
+                    self.assertEqual(original["source"], manifest["source"])
+                    self.assertEqual("draft", manifest["status"])
+                    self.assertEqual(1, manifest["translationCount"])
+                self.assertEqual(first_zip_bytes, self._prebuilt(archive_path.parent).read_bytes())
+
+    def test_invalid_overlay_inputs_reject_both_routes_without_replacing_output(self) -> None:
+        original = json.loads(self.overlay.read_text(encoding="utf-8"))
+        wrong_language = {**original, "language": "en"}
+        invalid_source = {**original, "source": {**original["source"], "steamBuildId": "bad id"}}
+        cases = (
+            (
+                "missing",
+                None,
+                ValueError,
+                "Overlay JSON does not exist|Could not read overlay JSON",
+            ),
+            ("unreadable", b"placeholder", ValueError, "Could not read overlay JSON"),
+            ("invalid-utf8", b"\xff", UnicodeDecodeError, "utf-8"),
+            ("bom", b"\xef\xbb\xbf{}", ValueError, "Could not read overlay JSON"),
+            ("malformed", b"{bad", ValueError, "Could not read overlay JSON"),
+            (
+                "wrong-language",
+                (json.dumps(wrong_language, ensure_ascii=False) + "\n").encode("utf-8"),
+                ValueError,
+                "Overlay must target Peglin and Korean",
+            ),
+            (
+                "invalid-source",
+                (json.dumps(invalid_source, ensure_ascii=False) + "\n").encode("utf-8"),
+                ValueError,
+                "Overlay source steamBuildId is invalid",
+            ),
+        )
+        original_read_bytes = Path.read_bytes
+
+        for route in ("build", "prebuilt"):
+            for label, contents, error_type, error_message in cases:
+                with self.subTest(route=route, label=label):
+                    if contents is None:
+                        self.overlay.unlink(missing_ok=True)
+                    else:
+                        self.overlay.write_bytes(contents)
+                    output = self.root / f"reject-{route}-{label}"
+                    output.mkdir()
+                    existing = output / "existing.zip"
+                    existing.write_bytes(b"existing candidate")
+                    self.commands.clear()
+
+                    def read_bytes(path: Path) -> bytes:
+                        if label == "unreadable" and path == self.overlay:
+                            raise OSError("injected overlay read error")
+                        return original_read_bytes(path)
+
+                    with patch.object(Path, "read_bytes", read_bytes):
+                        with self.assertRaisesRegex(error_type, error_message):
+                            if route == "build":
+                                with patch.object(
+                                    candidate,
+                                    "_run_dotnet",
+                                    side_effect=AssertionError("invalid overlay reached the build"),
+                                ):
+                                    candidate.create_client_candidate(
+                                        self.overlay,
+                                        self.game,
+                                        output,
+                                        self.project,
+                                        project_root=self.root,
+                                    )
+                            else:
+                                self._prebuilt(output)
+                    self.assertEqual([], self.commands)
+                    self.assertEqual([existing], list(output.iterdir()))
+                    self.assertEqual(b"existing candidate", existing.read_bytes())
+
     def test_matching_sources_package_deterministically(self) -> None:
         first = self._build()
         first_bytes = first.read_bytes()
