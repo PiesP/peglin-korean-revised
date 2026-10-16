@@ -15,7 +15,7 @@ from peglin_l10n.release_tag import is_release_tag  # noqa: E402
 
 ADMIN_LOGIN = "piesp"
 GITHUB_ACTIONS_APP_ID = 15368
-REQUIRED_CHECK_NAME = "validate"
+REQUIRED_CHECK_NAMES = ("validate", "csharp-build")
 RIGHTS_CONFIRMATION = "번역 기여 이용 허락에 동의하며 제출 권한이 있음을 확인합니다."
 
 
@@ -36,11 +36,17 @@ def has_rights_confirmation(body: object) -> bool:
     )
 
 
-def has_successful_required_check(repository: str, head_sha: str) -> bool:
+def has_successful_required_checks(repository: str, head_sha: str) -> bool:
+    for check_name in REQUIRED_CHECK_NAMES:
+        if not has_successful_check(repository, head_sha, check_name):
+            return False
+    return True
+
+
+def has_successful_check(repository: str, head_sha: str, check_name: str) -> bool:
     response = github_api(
         repository,
-        f"commits/{head_sha}/check-runs?check_name={REQUIRED_CHECK_NAME}"
-        "&filter=latest&per_page=100",
+        f"commits/{head_sha}/check-runs?check_name={check_name}&filter=latest&per_page=100",
     )
     if (
         not isinstance(response, dict)
@@ -71,7 +77,7 @@ def has_successful_required_check(repository: str, head_sha: str) -> bool:
 
     check_run = check_runs[0]
     return (
-        check_run["name"] == REQUIRED_CHECK_NAME
+        check_run["name"] == check_name
         and check_run["head_sha"] == head_sha
         and check_run["status"] == "completed"
         and check_run["conclusion"] == "success"
@@ -138,7 +144,7 @@ def verified_pull_requests(
         ):
             continue
 
-        if not has_successful_required_check(repository, head["sha"]):
+        if not has_successful_required_checks(repository, head["sha"]):
             continue
 
         if author["login"].casefold() == ADMIN_LOGIN:
@@ -315,11 +321,11 @@ def verify_release_source() -> None:
 
     verified_prs = verified_pull_requests(repository, resolved_source_sha, pull_requests)
     if verified_prs:
-        if not has_successful_required_check(repository, resolved_source_sha):
+        if not has_successful_required_checks(repository, resolved_source_sha):
             write_result(
                 False,
-                "Release rejected: wait for a successful `validate` check on the exact "
-                "merged master commit, then create a new version tag.",
+                "Release rejected: wait for successful `validate` and `csharp-build` "
+                "checks on the exact merged master commit, then create a new version tag.",
                 source_sha=resolved_source_sha,
                 release_tag=release_tag,
                 tag_object_sha=tag_object_sha,
@@ -331,7 +337,7 @@ def verify_release_source() -> None:
         write_result(
             True,
             "Release source verified as permission-confirmed "
-            f"{descriptions} with a successful required validate check.",
+            f"{descriptions} with successful required `validate` and `csharp-build` checks.",
             source_sha=resolved_source_sha,
             release_tag=release_tag,
             tag_object_sha=tag_object_sha,
@@ -398,11 +404,11 @@ def verify_release_source() -> None:
                 tag_object_sha=tag_object_sha,
             )
             return
-        if not has_successful_required_check(repository, resolved_source_sha):
+        if not has_successful_required_checks(repository, resolved_source_sha):
             write_result(
                 False,
-                "Release rejected: wait for a successful `validate` check on the issue "
-                "commit, then rerun this workflow while that commit remains the master tip.",
+                "Release rejected: wait for successful `validate` and `csharp-build` checks "
+                "on the issue commit, then rerun this workflow while it remains the master tip.",
                 source_sha=resolved_source_sha,
                 release_tag=release_tag,
                 tag_object_sha=tag_object_sha,
@@ -421,8 +427,8 @@ def verify_release_source() -> None:
     write_result(
         False,
         "Release rejected: the source must be a rights-confirmed PR merged by @PiesP "
-        "with a successful `validate` check, or a single-parent CSV-only issue commit "
-        "with a rights-confirmed issue and successful `validate` check.",
+        "with successful `validate` and `csharp-build` checks, or a single-parent CSV-only "
+        "issue commit with a rights-confirmed issue and both successful required checks.",
         source_sha=resolved_source_sha,
         release_tag=release_tag,
         tag_object_sha=tag_object_sha,
