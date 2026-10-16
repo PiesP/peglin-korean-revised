@@ -226,8 +226,23 @@ def _package_candidate(
     plugin_dll: Path,
     assembly_sha256: str,
     project_root: Path,
+    *,
+    expected_source: tuple[str, str] | None = None,
 ) -> Path:
     overlay, overlay_bytes = _read_overlay(overlay_path)
+    source = overlay["source"]
+    if expected_source is not None:
+        changed_fields = [
+            field
+            for field, expected in zip(("assetSha256", "steamBuildId"), expected_source)
+            if source[field] != expected
+        ]
+        if changed_fields:
+            raise ValueError(
+                "Overlay source identity changed while building the client candidate "
+                f"({', '.join(changed_fields)}). Recheck the overlay against the installed "
+                "Peglin build and retry."
+            )
     if not plugin_dll.is_file():
         raise ValueError(f"Plugin DLL does not exist: {plugin_dll}")
     if _SHA256_PATTERN.fullmatch(assembly_sha256) is None:
@@ -238,7 +253,6 @@ def _package_candidate(
     except OSError as exc:
         raise ValueError(f"Could not read distribution license notices: {exc}") from exc
 
-    source = overlay["source"]
     terms = overlay["terms"]
     plugin_bytes = plugin_dll.read_bytes()
     overlay_sha256 = hashlib.sha256(overlay_bytes).hexdigest()
@@ -346,6 +360,7 @@ def create_client_candidate(
     overlay, _ = _read_overlay(overlay_path)
     source = overlay["source"]
     asset_sha256 = source.get("assetSha256")
+    expected_source = (source["assetSha256"], source["steamBuildId"])
     installed_asset_sha256 = sha256_file(game_asset)
     if installed_asset_sha256 != asset_sha256:
         raise ValueError(
@@ -409,4 +424,5 @@ def create_client_candidate(
         plugin_dll,
         installed_assembly_sha256,
         project_root,
+        expected_source=expected_source,
     )
