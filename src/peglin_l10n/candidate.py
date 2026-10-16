@@ -194,9 +194,10 @@ def _write_zip_atomically(path: Path, files: dict[str, bytes]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
-def _read_overlay(path: Path) -> dict[str, Any]:
+def _read_overlay(path: Path) -> tuple[dict[str, Any], bytes]:
     try:
-        overlay = json.loads(path.read_text(encoding="utf-8"))
+        overlay_bytes = path.read_bytes()
+        overlay = json.loads(overlay_bytes.decode("utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"Could not read overlay JSON: {exc}") from exc
     if not isinstance(overlay, dict) or overlay.get("kind") != "peglin-korean-overlay":
@@ -216,7 +217,7 @@ def _read_overlay(path: Path) -> dict[str, Any]:
         raise ValueError("Overlay source assetSha256 is invalid.")
     if overlay.get("status") not in {"draft", "approved"}:
         raise ValueError("Overlay status must be draft or approved.")
-    return overlay
+    return overlay, overlay_bytes
 
 
 def _package_candidate(
@@ -226,7 +227,7 @@ def _package_candidate(
     assembly_sha256: str,
     project_root: Path,
 ) -> Path:
-    overlay = _read_overlay(overlay_path)
+    overlay, overlay_bytes = _read_overlay(overlay_path)
     if not plugin_dll.is_file():
         raise ValueError(f"Plugin DLL does not exist: {plugin_dll}")
     if _SHA256_PATTERN.fullmatch(assembly_sha256) is None:
@@ -239,7 +240,6 @@ def _package_candidate(
 
     source = overlay["source"]
     terms = overlay["terms"]
-    overlay_bytes = overlay_path.read_bytes()
     plugin_bytes = plugin_dll.read_bytes()
     overlay_sha256 = hashlib.sha256(overlay_bytes).hexdigest()
     plugin_sha256 = hashlib.sha256(plugin_bytes).hexdigest()
@@ -343,7 +343,7 @@ def create_client_candidate(
     if candidate_dir == game_root or candidate_dir.is_relative_to(game_root):
         raise ValueError("Candidate output must be outside the Peglin installation directory.")
 
-    overlay = _read_overlay(overlay_path)
+    overlay, _ = _read_overlay(overlay_path)
     source = overlay["source"]
     asset_sha256 = source.get("assetSha256")
     installed_asset_sha256 = sha256_file(game_asset)
