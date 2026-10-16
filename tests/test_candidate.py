@@ -442,6 +442,230 @@ class ClientCandidateTests(unittest.TestCase):
         self.assertEqual(["restore", "build"], self.commands)
         self.assertFalse((self.root / "output").exists())
 
+    def test_valid_source_identity_drift_during_build_preserves_prior_candidate(self) -> None:
+        original_bytes = self.overlay.read_bytes()
+        original = json.loads(original_bytes)
+        overlay_member = "BepInEx/plugins/PeglinKoreanRevised/overlay.json"
+        manifest_member = "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+
+        for fields in (("assetSha256",), ("steamBuildId",), ("assetSha256", "steamBuildId")):
+            with self.subTest(fields=fields):
+                self.overlay.write_bytes(original_bytes)
+                prior_path = self._build()
+                prior_bytes = prior_path.read_bytes()
+                replacement = json.loads(original_bytes)
+                if "assetSha256" in fields:
+                    replacement["source"]["assetSha256"] = "b" * 64
+                if "steamBuildId" in fields:
+                    replacement["source"]["steamBuildId"] = "different-build"
+                replacement["terms"]["General/Damage"] = "새 피해"
+                replacement_bytes = (json.dumps(replacement, ensure_ascii=False) + "\n").encode(
+                    "utf-8"
+                )
+                self.commands.clear()
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.assertEqual(self.project.parent, project_dir)
+                    self.commands.append(command[1])
+                    if command[1] == "build":
+                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self.overlay.write_bytes(replacement_bytes)
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "Overlay source identity changed while building.*" + fields[0],
+                    ):
+                        candidate.create_client_candidate(
+                            self.overlay,
+                            self.game,
+                            prior_path.parent,
+                            self.project,
+                            project_root=self.root,
+                        )
+                self.assertEqual(["restore", "build"], self.commands)
+                self.assertEqual([prior_path], list(prior_path.parent.iterdir()))
+                self.assertEqual(prior_bytes, prior_path.read_bytes())
+                with zipfile.ZipFile(prior_path) as archive:
+                    self.assertEqual(original_bytes, archive.read(overlay_member))
+                    self.assertEqual(
+                        original["source"], json.loads(archive.read(manifest_member))["source"]
+                    )
+
+    def test_same_source_build_edit_packages_final_validated_bytes(self) -> None:
+        original = json.loads(self.overlay.read_bytes())
+        overlay_member = "BepInEx/plugins/PeglinKoreanRevised/overlay.json"
+        manifest_member = "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+        for newline, edit_terms, escape_korean in (
+            ("\n", False, False),
+            ("\r\n", False, False),
+            ("\n", True, False),
+            ("\n", True, True),
+        ):
+            with self.subTest(
+                newline=repr(newline), edit_terms=edit_terms, escape_korean=escape_korean
+            ):
+                changed = json.loads(json.dumps(original))
+                if edit_terms:
+                    changed["terms"]["General/Damage"] = "새 피해"
+                    changed["terms"]["General/Other"] = "추가 문구"
+                final_bytes = (
+                    (json.dumps(changed, ensure_ascii=escape_korean, indent=2) + "\n")
+                    .replace("\n", newline)
+                    .encode("utf-8")
+                )
+                self._write_overlay(original)
+                self.commands.clear()
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.assertEqual(self.project.parent, project_dir)
+                    self.commands.append(command[1])
+                    if command[1] == "build":
+                        self.plugin.parent.mkdir(parents=True, exist_ok=True)
+                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self.overlay.write_bytes(final_bytes)
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    archive_path = candidate.create_client_candidate(
+                        self.overlay,
+                        self.game,
+                        self.root / "output",
+                        self.project,
+                        project_root=self.root,
+                    )
+                self.assertEqual(["restore", "build"], self.commands)
+                with zipfile.ZipFile(archive_path) as archive:
+                    self.assertEqual(final_bytes, archive.read(overlay_member))
+                    manifest = json.loads(archive.read(manifest_member))
+                self.assertEqual(changed["source"], manifest["source"])
+                self.assertEqual(len(changed["terms"]), manifest["translationCount"])
+                self.assertEqual(
+                    hashlib.sha256(final_bytes).hexdigest(), manifest["files"][overlay_member]
+                )
+
+    def test_installed_route_packages_the_validated_snapshot_after_path_replacement(self) -> None:
+        original_bytes = self.overlay.read_bytes()
+        replacement = json.loads(original_bytes)
+        replacement["source"]["assetSha256"] = "b" * 64
+        replacement["source"]["steamBuildId"] = "different-build"
+        replacement_bytes = (json.dumps(replacement, ensure_ascii=False) + "\n").encode("utf-8")
+        original_read_overlay = candidate._read_overlay
+        reads = 0
+
+        def read_then_replace(path: Path) -> tuple[dict[str, object], bytes]:
+            nonlocal reads
+            snapshot = original_read_overlay(path)
+            reads += 1
+            if reads == 2:
+                self.overlay.write_bytes(replacement_bytes)
+            return snapshot
+
+        with patch.object(candidate, "_read_overlay", side_effect=read_then_replace):
+            archive_path = self._build()
+        self.assertEqual(2, reads)
+        self.assertEqual(replacement_bytes, self.overlay.read_bytes())
+        with zipfile.ZipFile(archive_path) as archive:
+            overlay_member = "BepInEx/plugins/PeglinKoreanRevised/overlay.json"
+            manifest_member = "BepInEx/plugins/PeglinKoreanRevised/manifest.json"
+            self.assertEqual(original_bytes, archive.read(overlay_member))
+            manifest = json.loads(archive.read(manifest_member))
+        self.assertEqual(json.loads(original_bytes)["source"], manifest["source"])
+        self.assertEqual(
+            hashlib.sha256(original_bytes).hexdigest(), manifest["files"][overlay_member]
+        )
+
+    def test_invalid_final_overlay_rejects_without_replacing_output(self) -> None:
+        original_bytes = self.overlay.read_bytes()
+        original = json.loads(original_bytes)
+        cases = (
+            ("malformed", b"{bad", "Could not read overlay JSON"),
+            ("missing source", {**original, "source": None}, "source metadata.*required"),
+            (
+                "invalid source",
+                {**original, "source": {**original["source"], "steamBuildId": "bad id"}},
+                "steamBuildId is invalid",
+            ),
+            ("wrong game", {**original, "game": "Other"}, "must target Peglin and Korean"),
+            ("wrong language", {**original, "language": "en"}, "must target Peglin and Korean"),
+            (
+                "wrong status",
+                {**original, "status": "unreviewed"},
+                "status must be draft or approved",
+            ),
+            ("empty terms", {**original, "terms": {}}, "translation terms are required"),
+        )
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        for label, replacement, error in cases:
+            with self.subTest(label=label):
+                self.overlay.write_bytes(original_bytes)
+                replacement_bytes = (
+                    replacement
+                    if isinstance(replacement, bytes)
+                    else (json.dumps(replacement, ensure_ascii=False) + "\n").encode("utf-8")
+                )
+                self.commands.clear()
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.assertEqual(self.project.parent, project_dir)
+                    self.commands.append(command[1])
+                    if command[1] == "build":
+                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self.overlay.write_bytes(replacement_bytes)
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    with self.assertRaisesRegex(ValueError, error):
+                        candidate.create_client_candidate(
+                            self.overlay,
+                            self.game,
+                            prior_path.parent,
+                            self.project,
+                            project_root=self.root,
+                        )
+                self.assertEqual(["restore", "build"], self.commands)
+                self.assertEqual([prior_path], list(prior_path.parent.iterdir()))
+                self.assertEqual(prior_bytes, prior_path.read_bytes())
+
+    def test_restore_build_and_zip_write_failures_preserve_prior_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        for failure in ("restore", "build", "zip-write"):
+            with self.subTest(failure=failure):
+                self.commands.clear()
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.assertEqual(self.project.parent, project_dir)
+                    self.commands.append(command[1])
+                    if command[1] == failure:
+                        raise ValueError(f"injected {failure} failure")
+                    if command[1] == "build":
+                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    if failure == "zip-write":
+                        with patch.object(
+                            candidate.os, "replace", side_effect=OSError("injected ZIP failure")
+                        ):
+                            with self.assertRaisesRegex(OSError, "injected ZIP failure"):
+                                candidate.create_client_candidate(
+                                    self.overlay,
+                                    self.game,
+                                    prior_path.parent,
+                                    self.project,
+                                    project_root=self.root,
+                                )
+                    else:
+                        with self.assertRaisesRegex(ValueError, f"injected {failure} failure"):
+                            candidate.create_client_candidate(
+                                self.overlay,
+                                self.game,
+                                prior_path.parent,
+                                self.project,
+                                project_root=self.root,
+                            )
+                self.assertEqual([prior_path], list(prior_path.parent.iterdir()))
+                self.assertEqual(prior_bytes, prior_path.read_bytes())
+
     def test_initial_asset_mismatch_rejects_before_build(self) -> None:
         self.asset.write_bytes(b"different fixture resources")
         with self.assertRaisesRegex(ValueError, "Overlay source asset hash does not match"):
