@@ -1,0 +1,35 @@
+name: C# Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: csharp-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  csharp-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Hosted runners build against the maintained public API stubs only.
+      # The locked game DLLs and in-game behavior need separate local validation.
+      - name: Build public reference stubs
+        env:
+          REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
+        run: bash .github/scripts/build_public_stub_plugin.sh stubs "$REFERENCE_DIR"
+      - name: Build C# plugin
+        env:
+          REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
+        run: bash .github/scripts/build_public_stub_plugin.sh plugin "$REFERENCE_DIR"
