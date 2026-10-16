@@ -77,9 +77,6 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
         return "eligible=true" in output_path.read_text(encoding="utf-8")
 
     def _valid_issue_responses(self) -> dict[object, object]:
-        check_endpoint = (
-            f"commits/{self.source_sha}/check-runs?check_name=validate&filter=latest&per_page=100"
-        )
         return {
             f"commits/{self.source_sha}": {
                 "sha": self.source_sha,
@@ -92,7 +89,12 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
                     }
                 ],
             },
-            check_endpoint: self._successful_validate_check(head_sha=self.source_sha),
+            self._check_endpoint(self.source_sha, "validate"): self._successful_check(
+                "validate", head_sha=self.source_sha
+            ),
+            self._check_endpoint(self.source_sha, "csharp-build"): self._successful_check(
+                "csharp-build", head_sha=self.source_sha
+            ),
             f"issues/{self.issue_number}": {"body": self.rights_confirmation},
         }
 
@@ -114,12 +116,15 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
             "body": self.rights_confirmation if body is None else body,
         }
 
-    def _successful_validate_check(self, *, head_sha: str = "c" * 40) -> dict:
+    def _check_endpoint(self, head_sha: str, name: str) -> str:
+        return f"commits/{head_sha}/check-runs?check_name={name}&filter=latest&per_page=100"
+
+    def _successful_check(self, name: str, *, head_sha: str = "c" * 40) -> dict:
         return {
             "total_count": 1,
             "check_runs": [
                 {
-                    "name": "validate",
+                    "name": name,
                     "head_sha": head_sha,
                     "status": "completed",
                     "conclusion": "success",
@@ -133,17 +138,21 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
         assert isinstance(head, dict)
         head_sha = head["sha"]
         assert isinstance(head_sha, str)
-        check_runs_endpoint = (
-            f"commits/{head_sha}/check-runs?check_name=validate&filter=latest&per_page=100"
-        )
-        source_check_runs_endpoint = (
-            f"commits/{self.source_sha}/check-runs?check_name=validate&filter=latest&per_page=100"
-        )
         return {
             f"commits/{self.source_sha}/pulls": [{"number": 7}],
             "pulls/7": pull_request,
-            check_runs_endpoint: self._successful_validate_check(head_sha=head_sha),
-            source_check_runs_endpoint: self._successful_validate_check(head_sha=self.source_sha),
+            self._check_endpoint(head_sha, "validate"): self._successful_check(
+                "validate", head_sha=head_sha
+            ),
+            self._check_endpoint(head_sha, "csharp-build"): self._successful_check(
+                "csharp-build", head_sha=head_sha
+            ),
+            self._check_endpoint(self.source_sha, "validate"): self._successful_check(
+                "validate", head_sha=self.source_sha
+            ),
+            self._check_endpoint(self.source_sha, "csharp-build"): self._successful_check(
+                "csharp-build", head_sha=self.source_sha
+            ),
             ("pulls/7/reviews", True): [[]],
         }
 
@@ -251,9 +260,13 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
 
     def test_rejects_issue_commit_without_successful_validate_check(self) -> None:
         responses = self._valid_issue_responses()
-        endpoint = (
-            f"commits/{self.source_sha}/check-runs?check_name=validate&filter=latest&per_page=100"
-        )
+        endpoint = self._check_endpoint(self.source_sha, "validate")
+        responses[endpoint] = {"total_count": 0, "check_runs": []}
+        self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_issue_commit_without_successful_csharp_build(self) -> None:
+        responses = self._valid_issue_responses()
+        endpoint = self._check_endpoint(self.source_sha, "csharp-build")
         responses[endpoint] = {"total_count": 0, "check_runs": []}
         self.assertFalse(self._run(responses=responses))
 
@@ -277,7 +290,7 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
                     }
                 ],
             },
-            self._successful_validate_check(head_sha="d" * 40),
+            self._successful_check("validate", head_sha="d" * 40),
             {
                 "total_count": 1,
                 "check_runs": [
@@ -291,31 +304,56 @@ class ReleaseSourcePolicyTests(unittest.TestCase):
                 ],
             },
         )
-        endpoint = f"commits/{'c' * 40}/check-runs?check_name=validate&filter=latest&per_page=100"
+        endpoint = self._check_endpoint("c" * 40, "validate")
         for check_response in check_responses:
             responses = self._valid_pr_responses(self._pull_request())
             responses[endpoint] = check_response
             with self.subTest(check_response=check_response):
                 self.assertFalse(self._run(responses=responses))
 
+    def test_rejects_pr_without_successful_required_csharp_build(self) -> None:
+        pending = self._successful_check("csharp-build")
+        pending["check_runs"][0].update(status="in_progress", conclusion=None)
+        failed = self._successful_check("csharp-build")
+        failed["check_runs"][0]["conclusion"] = "failure"
+        wrong_app = self._successful_check("csharp-build")
+        wrong_app["check_runs"][0]["app"] = {"id": 1}
+        check_responses = (
+            {"total_count": 0, "check_runs": []},
+            pending,
+            failed,
+            self._successful_check("csharp-build", head_sha="d" * 40),
+            wrong_app,
+        )
+        endpoint = self._check_endpoint("c" * 40, "csharp-build")
+        for check_response in check_responses:
+            responses = self._valid_pr_responses(self._pull_request())
+            responses[endpoint] = check_response
+            with self.subTest(check_response=check_response):
+                self.assertFalse(self._run(responses=responses))
+
+    def test_rejects_pr_without_csharp_build_on_exact_merged_master_commit(self) -> None:
+        responses = self._valid_pr_responses(self._pull_request())
+        endpoint = self._check_endpoint(self.source_sha, "csharp-build")
+        responses[endpoint] = {"total_count": 0, "check_runs": []}
+        self.assertFalse(self._run(responses=responses))
+
     def test_rejects_pr_without_validate_on_exact_merged_master_commit(self) -> None:
         responses = self._valid_pr_responses(self._pull_request())
-        endpoint = (
-            f"commits/{self.source_sha}/check-runs?check_name=validate&filter=latest&per_page=100"
-        )
+        endpoint = self._check_endpoint(self.source_sha, "validate")
         responses[endpoint] = {"total_count": 0, "check_runs": []}
         self.assertFalse(self._run(responses=responses))
 
     def test_rejects_malformed_check_run_response(self) -> None:
         responses = self._valid_pr_responses(self._pull_request())
-        endpoint = f"commits/{'c' * 40}/check-runs?check_name=validate&filter=latest&per_page=100"
+        endpoint = self._check_endpoint("c" * 40, "validate")
         responses[endpoint] = {"total_count": 1, "check_runs": [None]}
         with self.assertRaises(SystemExit):
             self._run(responses=responses)
 
     def test_rejects_duplicate_or_incomplete_required_check_response(self) -> None:
-        endpoint = f"commits/{'c' * 40}/check-runs?check_name=validate&filter=latest&per_page=100"
-        one_check = self._successful_validate_check()["check_runs"][0]
+        endpoint = self._check_endpoint("c" * 40, "validate")
+        one_check = self._successful_check("validate")["check_runs"][0]
         for check_response in (
             {"total_count": 2, "check_runs": [one_check, dict(one_check)]},
             {"total_count": 2, "check_runs": [one_check]},

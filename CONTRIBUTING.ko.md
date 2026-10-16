@@ -93,16 +93,18 @@ MIT 라이선스는 Peglin이나 게임 내 콘텐츠에 대한 권리를 부여
 
 ## 검토와 병합
 
-모든 PR은 권한 확인 항목과 필수 `validate` 검사를 통과해야 합니다. 다른 기여자가
-작성한 PR은 저장소 관리자가 최신 PR 헤드를 승인한 뒤 직접 병합합니다. 관리자가
-작성한 PR은 자체 승인할 수 없으므로, 필수 `validate` 검사가 성공한 것을 확인한 뒤
-관리자 권한으로 승인 요구를 우회해 수동 병합합니다. 자동 병합은 사용하지 않습니다.
+모든 PR은 권한 확인 항목과 필수 `validate`, `csharp-build` 검사를 모두 통과해야 합니다.
+다른 기여자가 작성한 PR은 저장소 관리자가 최신 PR 헤드를 승인한 뒤 직접 병합합니다.
+관리자가 작성한 PR은 필수 승인 수가 0이므로 자체 승인이 필요하지 않습니다. 관리자도
+모든 필수 검사가 성공한 뒤 보호 규칙을 우회하지 않고 수동 병합합니다. 자동 병합은
+사용하지 않습니다.
 수정 요청이 남으면 해당 PR에서 내용을 보완해 주세요.
 
-관리자가 이슈 제안을 직접 반영할 때는 해당 이슈의 권한 확인과 번역 CSV 변경을
-확인한 뒤 번역 CSV만 포함한 단일 커밋으로 기본 브랜치에 반영합니다. 커밋은 단일
-부모를 가져야 하고, 메시지 마지막 줄에 `Issue: #번호`를 적어야 합니다. 이 커밋에도
-필수 `validate` 검사가 성공해야 합니다.
+관리자가 이슈 제안을 반영할 때도 해당 이슈의 권한 확인을 확인하고 PR을 열어 위의
+보호된 병합 절차를 따릅니다. 릴리스 출처 검증기는 기존에 직접 반영된 번역 CSV 전용
+단일 부모 이슈 커밋을 검사하는 경로를 유지합니다. 이 경우 커밋 메시지 마지막 줄에
+`Issue: #번호`가 있고 두 필수 검사가 정확한 커밋에서 성공해야 합니다. 이 경로는 현재
+보호 규칙을 우회할 권한을 주지 않습니다.
 
 병합이나 이슈 반영만으로 릴리스가 생성되지는 않습니다. 관리자가 공개를 결정하면
 `master`의 최신 커밋에 새 주석 태그(annotated tag)를 만들고 푸시합니다. 태그 대상이
@@ -116,7 +118,8 @@ MIT 라이선스는 Peglin이나 게임 내 콘텐츠에 대한 권리를 부여
 
 `pyproject.toml`의 도구 버전이나 플러그인 버전과 별도로 번역 패치 버전을 정합니다.
 `draft` 번역은 `-rc.N` 태그만, `approved` 번역은 안정 버전 태그만 사용할 수 있습니다.
-태그를 푸시하기 전에 대상 커밋의 `validate` 검사가 성공했는지 확인하세요.
+태그를 푸시하기 전에 대상 커밋의 `validate`, `csharp-build` 검사가 모두 성공했는지
+확인하세요.
 
 ```sh
 git fetch origin master
@@ -163,7 +166,9 @@ for installation, Python lint and formatting, compilation, test discovery and
 translation lint. The build job alone
 runs `build-release-candidate`; `upload-artifact` stores its outputs for the same
 workflow run. The eligibility job verifies the tag, latest `master` source,
-permission-confirmed contribution and exact required check. The publication
+permission-confirmed contribution and both app-bound required checks on the exact
+PR head and merged source commit. The legacy single-parent CSV-only issue source
+path also requires both checks on the exact source commit. The publication
 job has `contents: write`; its downloaded candidate files are data, while the
 verifier must come from a separately reviewed immutable full commit SHA with
 `persist-credentials: false` and no candidate dependency install. Only then
@@ -180,9 +185,12 @@ eligibility outputs. `test_release_artifact_verifier.py` and
 Remaining workflow `run:` blocks are bounded adapters: checkout/setup action
 inputs are YAML; `python3` and `uv` commands start the named helpers or package
 checks; the shell `set -euo pipefail` blocks guard step failure. The security
-workflow retains Bash for pinned Docker OSV scanning, SARIF handling and
-locked `dotnet` CodeQL reference-stub builds; changing those tool boundaries
-or their failure handling calls for a separate security review. The release
+workflow retains Bash for pinned Docker OSV scanning and SARIF handling.
+`security.yaml` and `csharp-build.yml` use the same
+`.github/scripts/build_public_stub_plugin.sh` entrypoint for locked public
+reference-stub and plugin builds. These hosted builds use public stubs, not game
+DLLs; changing those tool boundaries or their failure handling calls for a
+separate security review. The release
 workflow's artifact validation and release argument/tag checks live in its
 Python helpers. Review the bootstrap constraint whenever
 the runner Python, manifest parser or dependency order changes; review every
