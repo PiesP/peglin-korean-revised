@@ -193,7 +193,9 @@ multi-line release-candidate command passes three environment values as
 arguments. The OSV image digest and permissions remain in `security.yaml`.
 `security.yaml` and `csharp-build.yml` invoke the same Python build helper for
 locked public reference-stub and plugin builds. These hosted builds use public
-stubs, not game DLLs. Test-created executable stand-ins exercise process
+stubs, not game DLLs. On interruption, the build helper stops and reaps its
+direct `dotnet` child and removes its temporary target; it does not create or
+manage a process group. Test-created executable stand-ins exercise process
 boundaries; they are fixtures, not operational shell automation. The release
 workflow's artifact validation and release argument/tag checks live in its
 Python helpers. Review the bootstrap constraint whenever

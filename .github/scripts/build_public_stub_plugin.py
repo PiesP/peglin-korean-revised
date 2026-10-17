@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,15 @@ TARGETS = """<Project>
   </Target>
 </Project>
 """
+
+
+class BuildInterrupted(Exception):
+    def __init__(self, signum: int) -> None:
+        self.signum = signum
+
+
+def interrupt_build(signum: int, _frame: object) -> None:
+    raise BuildInterrupted(signum)
 
 
 def run_dotnet(arguments: list[str]) -> int:
@@ -155,12 +165,22 @@ def main(argv: list[str]) -> int:
     if not reference_dir:
         print("Expected a reference assembly directory", file=sys.stderr)
         return 2
-    if stage == "stubs":
-        return build_stubs(Path(reference_dir))
-    if stage == "plugin":
+    if stage not in ("stubs", "plugin"):
+        print(f"Unknown build stage: {stage}", file=sys.stderr)
+        return 2
+    previous_sigterm = signal.signal(signal.SIGTERM, interrupt_build)
+    try:
+        if stage == "stubs":
+            return build_stubs(Path(reference_dir))
         return build_plugin(Path(reference_dir))
-    print(f"Unknown build stage: {stage}", file=sys.stderr)
-    return 2
+    except BuildInterrupted as exc:
+        print(f"Public-stub build interrupted by signal {exc.signum}", file=sys.stderr)
+        return 128 + exc.signum
+    except KeyboardInterrupt:
+        print("Public-stub build interrupted by signal 2", file=sys.stderr)
+        return 130
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
 
 
 if __name__ == "__main__":

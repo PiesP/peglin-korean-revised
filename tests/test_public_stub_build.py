@@ -1,9 +1,11 @@
 import json
 import os
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -18,6 +20,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.root = Path(self.temporary_directory.name)
         self.reference_dir = self.root / "references with spaces"
         self.calls = self.root / "dotnet-calls"
+        self.build_started = self.root / "build-started"
         self.runner_temp = self.root / "runner temp"
         self.runner_temp.mkdir()
         fake_dotnet = self.root / "dotnet"
@@ -37,6 +40,10 @@ class PublicStubBuildTests(unittest.TestCase):
             "    targets = next(arg.split('=', 1)[1] for arg in args if arg.startswith('-p:CustomAfter'))\n"
             "    assert pathlib.Path(targets).stat().st_mode & 0o777 == 0o600\n"
             "    assert 'Reference Remove=\"netstandard\"' in pathlib.Path(targets).read_text()\n"
+            "    if os.environ.get('BLOCK_BUILD') == '1':\n"
+            "        pathlib.Path(os.environ['BUILD_STARTED']).write_text(json.dumps({'pid': os.getpid(), 'targets': targets}))\n"
+            "        import time\n"
+            "        time.sleep(60)\n"
         )
         fake_dotnet.chmod(0o700)
 
@@ -175,6 +182,57 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertIn("Expected a reference assembly directory", result.stderr)
         self.assertEqual(before_mode, stat.S_IMODE(self.root.stat().st_mode))
+
+    def test_termination_reaps_owned_dotnet_child_and_removes_targets(self) -> None:
+        self.plugin_inputs()
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PATH": f"{self.root}:{environment['PATH']}",
+                "CALL_LOG": str(self.calls),
+                "FAIL_COMMAND": "none",
+                "RUNNER_TEMP": str(self.runner_temp),
+                "BLOCK_BUILD": "1",
+                "BUILD_STARTED": str(self.build_started),
+            }
+        )
+        helper = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "plugin", str(self.reference_dir)],
+            cwd=self.root,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        child_pid: int | None = None
+        try:
+            deadline = time.monotonic() + 5
+            while not self.build_started.exists() and time.monotonic() < deadline:
+                if helper.poll() is not None:
+                    self.fail(f"build helper exited before plugin build: {helper.communicate()}")
+                time.sleep(0.02)
+            self.assertTrue(self.build_started.exists(), "plugin build did not start")
+            started = json.loads(self.build_started.read_text())
+            child_pid = started["pid"]
+            targets = Path(started["targets"])
+            self.assertTrue(targets.exists())
+            helper.send_signal(signal.SIGTERM)
+            _stdout, stderr = helper.communicate(timeout=5)
+            self.assertEqual(143, helper.returncode, stderr)
+            self.assertIn("interrupted by signal 15", stderr)
+            self.assertFalse(targets.exists())
+            self.assertEqual([], list(self.runner_temp.iterdir()))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child_pid, 0)
+        finally:
+            if helper.poll() is None:
+                helper.kill()
+                helper.communicate(timeout=5)
+            if child_pid is not None:
+                try:
+                    os.kill(child_pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
 
 
 if __name__ == "__main__":
