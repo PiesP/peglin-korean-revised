@@ -28,8 +28,8 @@ jobs:
       - name: Build public reference stubs
         env:
           REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
-        run: bash .github/scripts/build_public_stub_plugin.sh stubs "$REFERENCE_DIR"
+        run: python3 .github/scripts/build_public_stub_plugin.py stubs "$REFERENCE_DIR"
       - name: Build C# plugin
         env:
           REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
-        run: bash .github/scripts/build_public_stub_plugin.sh plugin "$REFERENCE_DIR"
+        run: python3 .github/scripts/build_public_stub_plugin.py plugin "$REFERENCE_DIR"
