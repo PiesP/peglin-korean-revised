@@ -157,6 +157,9 @@ to apply the configured formatting.
 | Workflow helper | Runtime, inputs and effects | Tests |
 | --- | --- | --- |
 | `python3 .github/scripts/resolve_toolchains.py` | Bootstrap Python on Ubuntu before setup-python or `uv`; reads only `pyproject.toml` with standard-library `tomllib`, appends validated Python/uv versions to `GITHUB_OUTPUT`. It cannot import installed project dependencies or assume a newer bootstrap Python. | `test_toolchain_selection.py` |
+| `python3 .github/scripts/build_public_stub_plugin.py stubs <reference-directory>` | Ubuntu system Python 3.11 or newer and .NET SDK, before CodeQL initialization; checks all four public-stub lockfiles, restores and builds three projects with locked inputs, then copies four reference DLLs into a private directory. No package install or game DLL input. | `test_public_stub_build.py`, hosted `csharp-build` and CodeQL C# jobs |
+| `python3 .github/scripts/build_public_stub_plugin.py plugin <reference-directory>` | Same system Python and .NET SDK, after CodeQL initialization for C#; checks the plugin lockfile and four public DLLs, restores and builds the plugin with a private temporary MSBuild target removed after use. | `test_public_stub_build.py`, hosted `csharp-build` and CodeQL C# jobs |
+| `python3 .github/scripts/run_osv_scan.py` | Ubuntu system Python 3.11 or newer and Docker in `security.yaml`; reads `RUNNER_TEMP`, `GITHUB_WORKSPACE`, `OSV_SCANNER_IMAGE`, and `GITHUB_OUTPUT`, removes stale SARIF, runs the workflow-selected image against both lockfiles, and appends `report=true` only for a nonempty SARIF file. Findings warn; operational failures remain nonzero while a valid report stays uploadable. | `test_osv_scan.py`, hosted OSV job |
 | `python3 .github/scripts/verify_release_source.py` | Source-eligibility job after read-only checkout and Python setup; reads tag, actor, source and repository environment, invokes `gh api` with inherited `GH_TOKEN`, and writes eligibility/source/tag/tag-object outputs. It never publishes. | `test_release_source_policy.py` |
 | `python3 .github/scripts/verify_release_artifacts.py` | Publication job, standard library only, from a reviewed immutable trusted checkout; reads downloaded current-run files and verified source/tag environment; appends release outputs only after every check passes. No candidate import/install or network call. | `test_release_artifact_verifier.py` |
 | `python3 .github/scripts/publish_release.py` | Publication job after successful artifact verification; uses inherited `GH_TOKEN`, rechecks the annotated tag object through `gh api`, then passes the verified seven assets to `gh release create` as an argument vector. | `test_release_publisher.py` |
@@ -182,15 +185,16 @@ restoring the previous reviewed pin; candidate source/tag identity stays in the
 eligibility outputs. `test_release_artifact_verifier.py` and
 `test_release_workflow.py` cover the CLI contract and trusted workflow wiring.
 
-Remaining workflow `run:` blocks are bounded adapters: checkout/setup action
-inputs are YAML; `python3` and `uv` commands start the named helpers or package
-checks; the shell `set -euo pipefail` blocks guard step failure. The security
-workflow retains Bash for pinned Docker OSV scanning and SARIF handling.
-`security.yaml` and `csharp-build.yml` use the same
-`.github/scripts/build_public_stub_plugin.sh` entrypoint for locked public
-reference-stub and plugin builds. These hosted builds use public stubs, not game
-DLLs; changing those tool boundaries or their failure handling calls for a
-separate security review. The release
+Remaining workflow `run:` blocks are short shell adapters: checkout/setup action
+inputs are YAML; `python3` and `uv` commands start named helpers or package
+checks. The release-source step retains a `set -euo pipefail` guard around one
+Python command; the ineligible-source step emits a diagnostic and fails. The
+multi-line release-candidate command passes three environment values as
+arguments. The OSV image digest and permissions remain in `security.yaml`.
+`security.yaml` and `csharp-build.yml` invoke the same Python build helper for
+locked public reference-stub and plugin builds. These hosted builds use public
+stubs, not game DLLs. Test-created executable stand-ins exercise process
+boundaries; they are fixtures, not operational shell automation. The release
 workflow's artifact validation and release argument/tag checks live in its
 Python helpers. Review the bootstrap constraint whenever
 the runner Python, manifest parser or dependency order changes; review every
