@@ -152,6 +152,9 @@ def main(argv: list[str]) -> int:
         )
         return 2
     stage, reference_dir = argv
+    if not reference_dir:
+        print("Expected a reference assembly directory", file=sys.stderr)
+        return 2
     if stage == "stubs":
         return build_stubs(Path(reference_dir))
     if stage == "plugin":

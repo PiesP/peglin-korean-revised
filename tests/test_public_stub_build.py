@@ -162,6 +162,20 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("Could not start dotnet", result.stderr)
         self.assertFalse(self.reference_dir.exists())
 
+    def test_empty_reference_directory_is_rejected_without_changing_workspace_mode(self) -> None:
+        self.locks()
+        before_mode = stat.S_IMODE(self.root.stat().st_mode)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "stubs", ""],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("Expected a reference assembly directory", result.stderr)
+        self.assertEqual(before_mode, stat.S_IMODE(self.root.stat().st_mode))
+
 
 if __name__ == "__main__":
     unittest.main()
