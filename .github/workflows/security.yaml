@@ -50,7 +50,7 @@ jobs:
         if: ${{ matrix.language == 'csharp' }}
         env:
           CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
-        run: bash .github/scripts/build_public_stub_plugin.sh stubs "$CODEQL_REFERENCE_DIR"
+        run: python3 .github/scripts/build_public_stub_plugin.py stubs "$CODEQL_REFERENCE_DIR"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
@@ -64,7 +64,7 @@ jobs:
         if: ${{ matrix.language == 'csharp' }}
         env:
           CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
-        run: bash .github/scripts/build_public_stub_plugin.sh plugin "$CODEQL_REFERENCE_DIR"
+        run: python3 .github/scripts/build_public_stub_plugin.py plugin "$CODEQL_REFERENCE_DIR"
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
