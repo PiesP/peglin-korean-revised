@@ -5,15 +5,19 @@ import csv
 import hashlib
 import io
 import json
+import os
 import tempfile
 import unittest
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
+from peglin_l10n import atomic_write
 from peglin_l10n.cli import main
 from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
+from peglin_l10n.patching import create_locked_overlay_patch
 from peglin_l10n.release import build_release_candidate
 from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
 from peglin_l10n.validation import (
@@ -521,7 +525,23 @@ class ReleasePackagingTests(unittest.TestCase):
         first_files = {path.name: path.read_bytes() for path in first.iterdir()}
         second_files = {path.name: path.read_bytes() for path in second.iterdir()}
         self.assertEqual(first_files, second_files)
+        for path in first.iterdir():
+            self.assertEqual(0o644, path.stat().st_mode & 0o777, path.name)
+        overlay_name = next(
+            name
+            for name in first_files
+            if name.endswith(".json") and name != "release-manifest.json"
+        )
+        overlay = json.loads(first_files[overlay_name])
+        self.assertEqual(
+            (json.dumps(overlay, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            first_files[overlay_name],
+        )
         manifest = json.loads(first_files["release-manifest.json"])
+        self.assertEqual(
+            (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            first_files["release-manifest.json"],
+        )
         self.assertEqual(2, manifest["schemaVersion"])
         self.assertEqual("abc123", manifest["sourceRevision"])
         self.assertEqual("peglin-ko-v1.0.0-rc.1", manifest["releaseTag"])
@@ -582,6 +602,46 @@ class ReleasePackagingTests(unittest.TestCase):
             manifest["runtime"]["pluginVersion"],
             package_manifest["runtime"]["pluginVersion"],
         )
+
+    def test_release_license_replace_failure_keeps_existing_destination(self) -> None:
+        output_dir = self.root / "release"
+        output_dir.mkdir()
+        license_path = output_dir / "LICENSE"
+        license_path.write_bytes(b"previous license")
+        original_replace = os.replace
+
+        def fail_license_replace(source: Path, destination: Path) -> None:
+            if destination == license_path:
+                raise OSError("injected license replacement failure")
+            original_replace(source, destination)
+
+        with patch.object(atomic_write.os, "replace", side_effect=fail_license_replace):
+            with self.assertRaisesRegex(OSError, "injected license replacement failure"):
+                build_release_candidate(
+                    self.root / "translation" / "terms",
+                    self.lock_path,
+                    self.root,
+                    "abc123",
+                    output_dir,
+                    release_tag="peglin-ko-v1.0.0-rc.1",
+                    plugin_source_inputs=self.plugin_inputs,
+                )
+        self.assertEqual(b"previous license", license_path.read_bytes())
+        self.assertEqual([], list(output_dir.glob(".LICENSE.*.tmp")))
+
+    def test_locked_overlay_fsync_failure_keeps_existing_destination(self) -> None:
+        overlay_path = self.root / "output" / "overlay.json"
+        overlay_path.parent.mkdir()
+        overlay_path.write_bytes(b"previous overlay")
+        with patch.object(
+            atomic_write.os, "fsync", side_effect=OSError("injected overlay sync failure")
+        ):
+            with self.assertRaisesRegex(OSError, "injected overlay sync failure"):
+                create_locked_overlay_patch(
+                    self.root / "translation" / "terms", self.lock, overlay_path
+                )
+        self.assertEqual(b"previous overlay", overlay_path.read_bytes())
+        self.assertEqual([], list(overlay_path.parent.glob(".overlay.json.*.tmp")))
 
     def test_source_lock_rejects_unregistered_root_field(self) -> None:
         self.lock["sourceTextDump"] = "proprietary source text"
