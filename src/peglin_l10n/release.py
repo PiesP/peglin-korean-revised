@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
-import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from .atomic_write import write_bytes_atomically
 from .candidate import PLUGIN_VERSION, create_prebuilt_client_candidate
 from .patching import create_locked_overlay_patch
 from .release_tag import is_release_tag, validate_release_tag_status
@@ -22,23 +21,6 @@ from .source_lock import (
 )
 
 REVISION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
-
-
-def _write_bytes_atomically(path: Path, contents: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
-    temporary_path = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(contents)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temporary_path.chmod(0o644)
-        os.replace(temporary_path, path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
 
 
 def _json_bytes(document: dict[str, Any]) -> bytes:
@@ -130,14 +112,14 @@ def build_release_candidate(
 
     license_path = output_dir / "LICENSE"
     license_bytes = (project_root / "LICENSE").read_bytes()
-    _write_bytes_atomically(license_path, license_bytes)
+    write_bytes_atomically(license_path, license_bytes)
     translation_notice_path = output_dir / "TRANSLATION-NOTICE.txt"
     translation_notice_bytes = (project_root / "TRANSLATION-NOTICE.txt").read_bytes()
-    _write_bytes_atomically(translation_notice_path, translation_notice_bytes)
+    write_bytes_atomically(translation_notice_path, translation_notice_bytes)
 
     notes_path = output_dir / "release-notes.md"
     notes_bytes = _release_notes(release_tag, source_revision, source_lock, overlay["status"])
-    _write_bytes_atomically(notes_path, notes_bytes)
+    write_bytes_atomically(notes_path, notes_bytes)
 
     artifacts = {
         overlay_path.name: sha256_file(overlay_path),
@@ -167,14 +149,14 @@ def build_release_candidate(
         "artifacts": dict(sorted(artifacts.items())),
     }
     manifest_path = output_dir / "release-manifest.json"
-    _write_bytes_atomically(manifest_path, _json_bytes(manifest))
+    write_bytes_atomically(manifest_path, _json_bytes(manifest))
     artifacts[manifest_path.name] = sha256_file(manifest_path)
 
     checksums_path = output_dir / "SHA256SUMS.txt"
     checksums = "".join(f"{digest}  {name}\n" for name, digest in sorted(artifacts.items())).encode(
         "ascii"
     )
-    _write_bytes_atomically(checksums_path, checksums)
+    write_bytes_atomically(checksums_path, checksums)
     return {
         "overlay": overlay_path,
         "candidate": candidate_path,

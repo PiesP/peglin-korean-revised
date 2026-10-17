@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from .atomic_write import write_bytes_atomically
 from .extract import APP_ID
 from .fingerprints import source_fingerprint as compute_source_fingerprint
 from .validation import (
@@ -21,6 +20,10 @@ from .validation import (
 )
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+
+def _json_bytes(document: dict[str, Any]) -> bytes:
+    return (json.dumps(document, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 def _read_source_manifest(path: Path, term_count: int) -> dict[str, Any]:
@@ -70,31 +73,6 @@ def _reject_unsafe_output(
     game_root = resolved_asset.parent.parent
     if resolved_output == resolved_asset or resolved_output.is_relative_to(game_root):
         raise ValueError("Overlay output must be outside the Peglin installation directory.")
-
-
-def _write_json_atomically(path: Path, document: dict[str, Any]) -> None:
-    serialized = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    temporary_path: Path | None = None
-    try:
-        descriptor, temporary_name = tempfile.mkstemp(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            text=True,
-        )
-        temporary_path = Path(temporary_name)
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-            stream.write(serialized)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temporary_path.chmod(0o644)
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
 
 
 def create_overlay_patch(
@@ -210,7 +188,7 @@ def create_overlay_patch(
         (terms_path, source_manifest_path, overrides_path, glossary_path),
         manifest,
     )
-    _write_json_atomically(output_path, document)
+    write_bytes_atomically(output_path, _json_bytes(document))
     return document
 
 
@@ -264,5 +242,5 @@ def create_locked_overlay_patch(
         terms_path.resolve()
     ):
         raise ValueError("Overlay output must be outside the contribution CSV directory.")
-    _write_json_atomically(output_path, document)
+    write_bytes_atomically(output_path, _json_bytes(document))
     return document
