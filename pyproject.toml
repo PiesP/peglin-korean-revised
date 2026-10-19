@@ -22,7 +22,7 @@ python = "3.11"
 uv = "0.9.7"
 
 [dependency-groups]
-dev = ["ruff==0.17.0"]
+dev = ["ruff==0.17.1"]
 
 [tool.ruff]
 target-version = "py311"
