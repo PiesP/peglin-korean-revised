@@ -168,13 +168,17 @@ to apply the configured formatting.
 
 `validate.yml` and the build job in `release-translation.yml` use locked `uv`
 for installation, Python lint and formatting, compilation, test discovery and
-translation lint. The build job alone
-runs `build-release-candidate`; `upload-artifact` stores its outputs for the same
+translation lint. On eligible tag pushes, the build job also runs
+`build-release-candidate`; `upload-artifact` stores its outputs for the same
 workflow run. The eligibility job verifies the tag, latest `master` source,
 permission-confirmed contribution and both app-bound required checks on the exact
 PR head and merged source commit. The legacy single-parent CSV-only issue source
-path also requires both checks on the exact source commit. The publication
-job has `contents: write`; its downloaded candidate files are data, while the
+path also requires both checks on the exact source commit. The release
+workflow can also be started manually from the default branch to verify the
+hosted release toolchain and shared quality gates. This manual run skips source
+eligibility, release-file creation, artifact upload and publication; it does not
+qualify a tag for release. The publication job has `contents: write`; its
+downloaded candidate files are data, while the
 verifier must come from a separately reviewed immutable full commit SHA with
 `persist-credentials: false` and no candidate dependency install. Only then
 may verifier outputs reach the tag-object recheck and release creation.
