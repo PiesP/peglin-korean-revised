@@ -1,6 +1,7 @@
 name: Release Korean translation patch
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "peglin-ko-v*"
@@ -17,7 +18,7 @@ concurrency:
 
 jobs:
   verify-release-source:
-    name: Verify eligible contribution source
+    name: Verify release or toolchain-check source
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -26,6 +27,16 @@ jobs:
       release_tag: ${{ steps.verify.outputs.release_tag }}
       tag_object_sha: ${{ steps.verify.outputs.tag_object_sha }}
     steps:
+      - name: Require default branch for manual verification
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          DEFAULT_BRANCH_REF: refs/heads/${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$SOURCE_REF" != "$DEFAULT_BRANCH_REF" ]]; then
+            echo "Manual verification must run from the default branch." >&2
+            exit 1
+          fi
       - name: Check out the source commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -39,6 +50,7 @@ jobs:
         with:
           python-version: ${{ steps.toolchains.outputs.python }}
       - name: Verify eligible pull request or administrator issue update
+        if: github.event_name == 'push'
         id: verify
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,15 +63,15 @@ jobs:
           set -euo pipefail
           python3 .github/scripts/verify_release_source.py
       - name: Require an eligible tagged source
-        if: steps.verify.outputs.eligible != 'true'
+        if: github.event_name == 'push' && steps.verify.outputs.eligible != 'true'
         run: |
           echo "The version tag does not point to an eligible release source." >&2
           exit 1
 
   build:
-    name: Build patch from eligible source
+    name: Build patch or verify release toolchain
     needs: verify-release-source
-    if: needs.verify-release-source.outputs.eligible == 'true'
+    if: needs.verify-release-source.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -105,6 +117,7 @@ jobs:
       - name: Validate contributor data
         run: uv run --locked peglin-l10n lint-overrides
       - name: Build release files
+        if: github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true'
         env:
           SOURCE_SHA: ${{ needs.verify-release-source.outputs.source_sha }}
           RELEASE_TAG: ${{ needs.verify-release-source.outputs.release_tag }}
@@ -115,6 +128,7 @@ jobs:
           --release-tag "$RELEASE_TAG"
           --output-dir "$OUTPUT_DIR"
       - name: Upload release files
+        if: github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: peglin-translation-release-${{ needs.verify-release-source.outputs.release_tag }}
@@ -125,7 +139,7 @@ jobs:
   publish:
     name: Publish GitHub release
     needs: [verify-release-source, build]
-    if: needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'
+    if: github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
