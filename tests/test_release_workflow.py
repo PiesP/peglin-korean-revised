@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -27,6 +28,13 @@ def publication_step(name: str) -> str:
     return publish[start:] if end < 0 else publish[start:end]
 
 
+def workflow_step(job: str, name: str) -> str:
+    section = WORKFLOW.read_text().split(f"  {job}:\n", 1)[1]
+    start = section.index(f"      - name: {name}\n")
+    end = section.find("      - name: ", start + 1)
+    return section[start:] if end < 0 else section[start:end]
+
+
 def command(name: str) -> list[str]:
     step = publication_step(name)
     match = re.search(r"^        run: (.+)$", step, re.MULTILINE)
@@ -39,6 +47,77 @@ def command(name: str) -> list[str]:
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
+    def test_manual_verification_guard_runs_before_checkout(self) -> None:
+        workflow = WORKFLOW.read_text()
+        verification = workflow.split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]
+        guard = workflow_step(
+            "verify-release-source", "Require default branch for manual verification"
+        )
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertLess(
+            verification.index("Require default branch for manual verification"),
+            verification.index("Check out the source commit"),
+        )
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", guard)
+        self.assertIn("SOURCE_REF: ${{ github.ref }}", guard)
+        self.assertIn(
+            "DEFAULT_BRANCH_REF: refs/heads/${{ github.event.repository.default_branch }}",
+            guard,
+        )
+        script = textwrap.dedent(guard.split("        run: |\n", 1)[1])
+        self.assertNotIn("${{", script)
+        for source_ref, allowed in (
+            ("refs/heads/master", True),
+            ("refs/heads/other", False),
+            ("refs/tags/peglin-ko-v1.0.0", False),
+        ):
+            with self.subTest(source_ref=source_ref):
+                result = subprocess.run(
+                    ["bash", "-e", "-o", "pipefail", "-c", script],
+                    cwd=ROOT,
+                    env={
+                        **os.environ,
+                        "SOURCE_REF": source_ref,
+                        "DEFAULT_BRANCH_REF": "refs/heads/master",
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(allowed, result.returncode == 0, result.stderr)
+
+    def test_manual_run_only_executes_shared_quality_gates(self) -> None:
+        workflow = WORKFLOW.read_text()
+        verification = workflow.split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]
+        build = workflow.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+        publish = workflow.split("  publish:\n", 1)[1]
+        self.assertIn(
+            "if: github.event_name == 'push'",
+            workflow_step(
+                "verify-release-source",
+                "Verify eligible pull request or administrator issue update",
+            ),
+        )
+        self.assertIn(
+            "if: github.event_name == 'push' && steps.verify.outputs.eligible != 'true'",
+            workflow_step("verify-release-source", "Require an eligible tagged source"),
+        )
+        self.assertIn("steps.verify.outputs.eligible", verification)
+        self.assertIn(
+            "if: needs.verify-release-source.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true'))",
+            build,
+        )
+        for name in ("Build release files", "Upload release files"):
+            with self.subTest(step=name):
+                self.assertIn(
+                    "if: github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true'",
+                    workflow_step("build", name),
+                )
+        self.assertIn(
+            "if: github.event_name == 'push' && needs.verify-release-source.outputs.eligible == 'true' && needs.build.result == 'success'",
+            publish,
+        )
+
     def test_python_quality_gates_precede_package_validation(self) -> None:
         for workflow in (VALIDATE_WORKFLOW, WORKFLOW):
             with self.subTest(workflow=workflow.name):
