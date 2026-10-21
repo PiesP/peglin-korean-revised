@@ -17,6 +17,11 @@ SPEC.loader.exec_module(toolchains)
 
 
 class ToolchainSelectionTests(unittest.TestCase):
+    def test_repository_selects_patched_uv_with_python_311(self) -> None:
+        python, uv = toolchains.resolve_toolchains(ROOT / "pyproject.toml")
+        self.assertEqual("3.11", python)
+        self.assertGreaterEqual(tuple(map(int, uv.split("."))), (0, 13, 4))
+
     def test_reads_changed_versions_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "pyproject.toml"

@@ -19,7 +19,7 @@ packages = ["src/peglin_l10n"]
 
 [tool.maintenance]
 python = "3.11"
-uv = "0.9.7"
+uv = "0.13.4"
 
 [dependency-groups]
 dev = ["ruff==0.17.1"]
