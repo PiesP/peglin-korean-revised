@@ -63,6 +63,28 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 self.assertIn("run: uv run --locked ruff format --check .", build)
                 self.assertNotIn("continue-on-error", build)
 
+    def test_pinned_uv_is_verified_before_sync_in_both_build_paths(self) -> None:
+        for workflow in (VALIDATE_WORKFLOW, WORKFLOW):
+            with self.subTest(workflow=workflow.name):
+                text = workflow.read_text()
+                build = (
+                    text.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+                    if workflow == WORKFLOW
+                    else text
+                )
+                self.assertLess(
+                    build.index("Resolve maintenance toolchains"), build.index("Set up uv")
+                )
+                self.assertLess(build.index("Set up uv"), build.index("Verify uv version"))
+                self.assertLess(
+                    build.index("Verify uv version"), build.index("Install locked dependencies")
+                )
+                self.assertIn("version: ${{ steps.toolchains.outputs.uv }}", build)
+                self.assertIn("UV_VERSION: ${{ steps.toolchains.outputs.uv }}", build)
+                self.assertIn('actual="$(uv --version)"', build)
+                self.assertIn('actual_version="${actual#uv }"', build)
+                self.assertIn('test "${actual_version%% *}" = "$UV_VERSION"', build)
+
     def test_publication_loads_only_immutable_trusted_helpers(self) -> None:
         publish = WORKFLOW.read_text().split("  publish:\n", 1)[1]
         checkout = publication_step("Load reviewed publication helpers")

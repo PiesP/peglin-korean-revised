@@ -35,6 +35,14 @@ jobs:
         with:
           version: ${{ steps.toolchains.outputs.uv }}
           enable-cache: false
+      - name: Verify uv version
+        env:
+          UV_VERSION: ${{ steps.toolchains.outputs.uv }}
+        run: |
+          actual="$(uv --version)"
+          echo "$actual"
+          actual_version="${actual#uv }"
+          test "${actual_version%% *}" = "$UV_VERSION"
       - name: Install locked dependencies
         env:
           PYTHON_VERSION: ${{ steps.toolchains.outputs.python }}

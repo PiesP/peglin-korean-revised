@@ -137,7 +137,9 @@ git push origin peglin-ko-v1.0.0-rc.1
 Python is the primary language for handwritten repository automation. The
 `peglin-l10n` entry point is declared in `pyproject.toml`; `uv.lock` and
 `[tool.maintenance]` select dependencies and runtimes. Use the locked Python
-3.11 environment for local package commands. C# under `plugin/` is product
+3.11 environment for local package commands. Install the uv version selected by
+`[tool.maintenance]`, confirm it with `uv --version`, then run
+`uv sync --locked --python 3.11`. C# under `plugin/` is product
 code; workflow YAML, lockfiles, and generated release files are not scripts.
 Check maintained Python code before committing with `uv run --locked ruff check .`
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
