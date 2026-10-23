@@ -152,21 +152,19 @@ Check maintained Python code before committing with `uv run --locked ruff check 
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
 
-### .NET SDK 선택
+### .NET SDK selection
 
-공개 C# 빌드, CodeQL의 C# 빌드, 설치된 게임으로 만드는 로컬 후보는 저장소 루트의
-`global.json`에 지정된 .NET SDK를 사용합니다. 저장소 루트에서 `dotnet --version`을
-실행해 파일의 `sdk.version`과 일치하는지 확인하세요. 다른 버전이 나오거나 SDK를
-찾지 못하면 해당 버전을 설치하고 다시 확인하세요. 로컬 `build-candidate` 명령도
-`plugin/`에서 `dotnet`을 실행하므로 상위 디렉터리의 같은 정책이 적용됩니다.
-로컬 경로 밖의 임의 디렉터리에서 `dotnet --version`을 실행하면 이 정책이 적용되지
-않을 수 있습니다.
+Public C# builds, CodeQL's C# build and installed-game local candidates use the
+SDK selected by the root `global.json`. Run `dotnet --version` from the repository
+root and check that it matches `sdk.version`. If it differs or the SDK is missing,
+install the selected version and check again. Local `build-candidate` invokes
+`dotnet` from `plugin/`, so the same ancestor policy applies. Running
+`dotnet --version` outside the checkout may select a different policy.
 
-`rollForward: disable`은 정확한 SDK 버전을 요구합니다. NuGet 잠금 파일과 함께
-빌드 도구도 고정해 결과 차이를 줄이지만, 보안 수정 버전으로 옮길 때는
-`global.json`을 갱신하고 공개 스텁 및 플러그인 빌드를 다시 검증해야 합니다.
-CI는 같은 파일을 읽어 SDK를 설치합니다. 공개 스텁 빌드와 CodeQL C# 빌드는
-각 단계에서 선택된 SDK 버전을 출력하고 확인합니다.
+`rollForward: disable` requires the exact SDK. This fixes the build tool alongside
+the NuGet locks; adopting a security update requires changing `global.json` and
+revalidating public-stub and plugin builds. CI installs the SDK from that same
+file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
