@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -41,12 +42,40 @@ def run_dotnet(arguments: list[str]) -> int:
         return 1
 
 
+def verify_sdk() -> int:
+    try:
+        expected = json.loads(Path("global.json").read_text(encoding="utf-8"))["sdk"]["version"]
+    except (OSError, KeyError, ValueError, TypeError) as exc:
+        print(f"Could not read SDK policy from global.json: {exc}", file=sys.stderr)
+        return 1
+    try:
+        result = subprocess.run(
+            ["dotnet", "--version"], capture_output=True, text=True, check=False
+        )
+    except OSError as exc:
+        print(f"Could not start dotnet: {exc}", file=sys.stderr)
+        return 1
+    if result.returncode:
+        print(f"Could not determine .NET SDK version: {result.stderr.strip()}", file=sys.stderr)
+        return result.returncode if result.returncode >= 0 else 128 - result.returncode
+    actual = result.stdout.strip()
+    print(f"Selected .NET SDK: {actual}", flush=True)
+    if actual != expected:
+        print(f"Expected .NET SDK {expected} from global.json, got {actual}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def build_stubs(reference_dir: Path) -> int:
     for project in STUB_PROJECTS:
         lockfile = Path(f".github/codeql-reference-stubs/{project}/packages.lock.json")
         if not lockfile.is_file():
             print(f"Missing public reference lockfile: {lockfile}", file=sys.stderr)
             return 1
+
+    status = verify_sdk()
+    if status:
+        return status
 
     for command in ("restore", "build"):
         for project in BUILT_PROJECTS:
@@ -95,6 +124,10 @@ def build_plugin(reference_dir: Path) -> int:
         if not (reference_dir / f"{assembly}.dll").is_file():
             print(f"Missing public reference assembly: {assembly}.dll", file=sys.stderr)
             return 1
+
+    status = verify_sdk()
+    if status:
+        return status
 
     project = "plugin/PeglinKoreanRevised.csproj"
     managed_dir = f"-p:PeglinManagedDir={reference_dir}"

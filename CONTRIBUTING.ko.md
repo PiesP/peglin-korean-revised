@@ -152,11 +152,27 @@ Check maintained Python code before committing with `uv run --locked ruff check 
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
 
+### .NET SDK 선택
+
+공개 C# 빌드, CodeQL의 C# 빌드, 설치된 게임으로 만드는 로컬 후보는 저장소 루트의
+`global.json`에 지정된 .NET SDK를 사용합니다. 저장소 루트에서 `dotnet --version`을
+실행해 파일의 `sdk.version`과 일치하는지 확인하세요. 다른 버전이 나오거나 SDK를
+찾지 못하면 해당 버전을 설치하고 다시 확인하세요. 로컬 `build-candidate` 명령도
+`plugin/`에서 `dotnet`을 실행하므로 상위 디렉터리의 같은 정책이 적용됩니다.
+로컬 경로 밖의 임의 디렉터리에서 `dotnet --version`을 실행하면 이 정책이 적용되지
+않을 수 있습니다.
+
+`rollForward: disable`은 정확한 SDK 버전을 요구합니다. NuGet 잠금 파일과 함께
+빌드 도구도 고정해 결과 차이를 줄이지만, 보안 수정 버전으로 옮길 때는
+`global.json`을 갱신하고 공개 스텁 및 플러그인 빌드를 다시 검증해야 합니다.
+CI는 같은 파일을 읽어 SDK를 설치합니다. 공개 스텁 빌드와 CodeQL C# 빌드는
+각 단계에서 선택된 SDK 버전을 출력하고 확인합니다.
+
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
 | `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
 | `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
-| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, .NET SDK, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
+| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, SDK from `global.json`, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
 | `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |

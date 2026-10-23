@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / ".github/scripts/build_public_stub_plugin.py"
+SDK_POLICY = Path(__file__).resolve().parents[1] / "global.json"
 STUB_PROJECTS = ("UnityEngine.CoreModule", "UnityEngine", "Assembly-CSharp", "Newtonsoft.Json")
 
 
@@ -23,6 +24,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.build_started = self.root / "build-started"
         self.runner_temp = self.root / "runner temp"
         self.runner_temp.mkdir()
+        (self.root / "global.json").write_bytes(SDK_POLICY.read_bytes())
         fake_dotnet = self.root / "dotnet"
         fake_dotnet.write_text(
             f"#!{sys.executable}\n"
@@ -30,6 +32,9 @@ class PublicStubBuildTests(unittest.TestCase):
             "args = sys.argv[1:]\n"
             "with open(os.environ['CALL_LOG'], 'a') as log: log.write(json.dumps(args) + '\\n')\n"
             "if args[0] == os.environ.get('FAIL_COMMAND'): sys.exit(23)\n"
+            "if args[0] == '--version':\n"
+            "    print(os.environ.get('FAKE_SDK') or json.loads(pathlib.Path('global.json').read_text())['sdk']['version'])\n"
+            "    sys.exit(0)\n"
             "if args[0] == 'build' and 'codeql-reference-stubs' in args[1]:\n"
             "    project = pathlib.Path(args[1]).stem\n"
             "    output = pathlib.Path(args[1]).parent / 'bin/Release/net46'\n"
@@ -62,7 +67,12 @@ class PublicStubBuildTests(unittest.TestCase):
             (self.reference_dir / f"{assembly}.dll").touch()
 
     def run_stage(
-        self, stage: str, fail_command: str = "none", *, only_fixture_path: bool = False
+        self,
+        stage: str,
+        fail_command: str = "none",
+        *,
+        only_fixture_path: bool = False,
+        fake_sdk: str = "",
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment.update(
@@ -72,6 +82,7 @@ class PublicStubBuildTests(unittest.TestCase):
                 else f"{self.root}:{environment['PATH']}",
                 "CALL_LOG": str(self.calls),
                 "FAIL_COMMAND": fail_command,
+                "FAKE_SDK": fake_sdk,
                 "RUNNER_TEMP": str(self.runner_temp),
             }
         )
@@ -98,8 +109,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.locks()
         result = self.run_stage("stubs", fail_command="restore")
         self.assertEqual(23, result.returncode)
-        self.assertEqual("restore", self.recorded_calls()[0][0])
-        self.assertEqual(1, len(self.recorded_calls()))
+        self.assertEqual(["--version", "restore"], [call[0] for call in self.recorded_calls()])
         self.assertFalse(self.reference_dir.exists())
 
     def test_stubs_preserve_command_order_and_publish_private_reference_directory(self) -> None:
@@ -107,13 +117,17 @@ class PublicStubBuildTests(unittest.TestCase):
         result = self.run_stage("stubs")
         self.assertEqual(0, result.returncode, result.stderr)
         calls = self.recorded_calls()
-        self.assertEqual(["restore"] * 3 + ["build"] * 3, [call[0] for call in calls])
+        self.assertEqual(
+            ["--version"] + ["restore"] * 3 + ["build"] * 3, [call[0] for call in calls]
+        )
+        expected = json.loads(SDK_POLICY.read_text())["sdk"]["version"]
+        self.assertIn(f"Selected .NET SDK: {expected}", result.stdout)
         self.assertEqual(
             ["UnityEngine", "Assembly-CSharp", "Newtonsoft.Json"] * 2,
-            [Path(call[1]).stem for call in calls],
+            [Path(call[1]).stem for call in calls[1:]],
         )
-        self.assertTrue(all("--locked-mode" in call for call in calls[:3]))
-        self.assertTrue(all("--no-restore" in call for call in calls[3:]))
+        self.assertTrue(all("--locked-mode" in call for call in calls[1:4]))
+        self.assertTrue(all("--no-restore" in call for call in calls[4:]))
         self.assertEqual(0o700, stat.S_IMODE(self.reference_dir.stat().st_mode))
         self.assertEqual(
             {f"{assembly}.dll" for assembly in STUB_PROJECTS},
@@ -125,11 +139,11 @@ class PublicStubBuildTests(unittest.TestCase):
         result = self.run_stage("plugin", fail_command="build")
         self.assertEqual(23, result.returncode)
         calls = self.recorded_calls()
-        self.assertEqual(["restore", "build"], [call[0] for call in calls])
-        self.assertIn(f"-p:PeglinManagedDir={self.reference_dir}", calls[0])
-        self.assertIn("--locked-mode", calls[0])
-        self.assertIn("--no-restore", calls[1])
-        self.assertIn("-p:ContinuousIntegrationBuild=true", calls[1])
+        self.assertEqual(["--version", "restore", "build"], [call[0] for call in calls])
+        self.assertIn(f"-p:PeglinManagedDir={self.reference_dir}", calls[1])
+        self.assertIn("--locked-mode", calls[1])
+        self.assertIn("--no-restore", calls[2])
+        self.assertIn("-p:ContinuousIntegrationBuild=true", calls[2])
         self.assertEqual([], list(self.runner_temp.iterdir()))
 
     def test_successful_plugin_build_also_cleans_targets(self) -> None:
@@ -159,7 +173,25 @@ class PublicStubBuildTests(unittest.TestCase):
         result = self.run_stage("plugin")
         self.assertEqual(1, result.returncode)
         self.assertIn("Could not create public-stub targets", result.stderr)
-        self.assertEqual(["restore"], [call[0] for call in self.recorded_calls()])
+        self.assertEqual(["--version", "restore"], [call[0] for call in self.recorded_calls()])
+
+    def test_wrong_sdk_stops_before_restore_in_each_stage(self) -> None:
+        self.locks()
+        self.plugin_inputs()
+        for stage in ("stubs", "plugin"):
+            with self.subTest(stage=stage):
+                self.calls.unlink(missing_ok=True)
+                result = self.run_stage(stage, fake_sdk="8.0.426")
+                self.assertEqual(1, result.returncode)
+                expected = json.loads(SDK_POLICY.read_text())["sdk"]["version"]
+                self.assertIn(f"Expected .NET SDK {expected}", result.stderr)
+                self.assertEqual([["--version"]], self.recorded_calls())
+
+    def test_failed_sdk_query_preserves_return_code(self) -> None:
+        self.locks()
+        result = self.run_stage("stubs", fail_command="--version")
+        self.assertEqual(23, result.returncode)
+        self.assertEqual([["--version"]], self.recorded_calls())
 
     def test_dotnet_start_failure_is_reported(self) -> None:
         self.locks()
