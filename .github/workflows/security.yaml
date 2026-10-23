@@ -52,7 +52,7 @@ jobs:
           CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
         run: python3 .github/scripts/build_public_stub_plugin.py stubs "$CODEQL_REFERENCE_DIR"
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -66,7 +66,7 @@ jobs:
           CODEQL_REFERENCE_DIR: ${{ runner.temp }}/peglin-managed-references
         run: python3 .github/scripts/build_public_stub_plugin.py plugin "$CODEQL_REFERENCE_DIR"
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}
 
@@ -88,7 +88,7 @@ jobs:
         run: python3 .github/scripts/run_osv_scan.py
       - name: Upload OSV results to code scanning
         if: ${{ !cancelled() && steps.scan.outputs.report == 'true' }}
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: ${{ runner.temp }}/osv-results/osv-results.sarif
           category: osv-scanner
