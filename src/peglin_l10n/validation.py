@@ -83,6 +83,24 @@ def protected_tokens(text: str) -> list[str]:
     return TOKEN_PATTERN.findall(text)
 
 
+def _expected_translation_tokens(
+    source_tokens: list[str], term: str, build_id: str | None, fingerprint: str | None
+) -> Counter[str]:
+    counts = Counter(source_tokens)
+    repair = _LOCKED_SPRITE_TAG_REPAIRS.get(term)
+    if (
+        repair is not None
+        and build_id == repair["steamBuildId"]
+        and fingerprint == repair["sourceFingerprint"]
+        and counts[repair["sourceToken"]] == 1
+    ):
+        counts[repair["sourceToken"]] -= 1
+        if not counts[repair["sourceToken"]]:
+            del counts[repair["sourceToken"]]
+        counts[repair["translationToken"]] += 1
+    return counts
+
+
 def _markup_marker(token: str) -> tuple[str, str, bool] | None:
     if token.startswith("<") and token.endswith(">"):
         contents = token[1:-1]
@@ -494,20 +512,10 @@ def validate_locked_translations(
                 )
             )
         else:
-            expected_token_counts = Counter(expected_tokens)
+            expected_token_counts = _expected_translation_tokens(
+                expected_tokens, term, source_lock.get("steamBuildId"), fingerprint
+            )
             actual_token_counts = Counter(protected_tokens(translation))
-            repair = _LOCKED_SPRITE_TAG_REPAIRS.get(term)
-            if (
-                repair is not None
-                and source_lock.get("steamBuildId") == repair["steamBuildId"]
-                and fingerprint == repair["sourceFingerprint"]
-                and expected_token_counts[repair["sourceToken"]] == 1
-            ):
-                expected_token_counts[repair["sourceToken"]] -= 1
-                if not expected_token_counts[repair["sourceToken"]]:
-                    del expected_token_counts[repair["sourceToken"]]
-                expected_token_counts[repair["translationToken"]] += 1
-
             if expected_token_counts != actual_token_counts:
                 issues.append(
                     Issue(
@@ -616,13 +624,24 @@ def validate_locked_translations(
     }, issues
 
 
-def _check_translation(source: str, translation: str, term: str, source_name: str) -> list[Issue]:
+def _check_translation(
+    source: str,
+    translation: str,
+    term: str,
+    source_name: str,
+    build_id: str | None = None,
+    fingerprint: str | None = None,
+) -> list[Issue]:
     if not translation:
         return []
     issues: list[Issue] = []
     expected = protected_tokens(source)
     actual = protected_tokens(translation)
-    if Counter(expected) != Counter(actual):
+    actual_counts = Counter(actual)
+    if (
+        Counter(expected) != actual_counts
+        and _expected_translation_tokens(expected, term, build_id, fingerprint) != actual_counts
+    ):
         issues.append(
             Issue(
                 "error",
@@ -666,6 +685,19 @@ def validate(
 
     rows = read_terms_csv(terms_path)
     issues: list[Issue] = []
+    manifest_path = source_manifest_path or terms_path.with_name("source.json")
+    source_build_id: str | None = None
+    source_build_error: str | None = None
+    if manifest_path.is_file() or source_manifest_path is not None or overrides_path is not None:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise ValueError("Source manifest root must be a JSON object.")
+            build_id = manifest.get("steamBuildId")
+            if isinstance(build_id, str) and build_id.strip():
+                source_build_id = build_id
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            source_build_error = str(exc)
     by_term: dict[str, dict[str, str]] = {}
     empty_official = 0
     identical = 0
@@ -692,7 +724,11 @@ def validate(
         empty_official += bool(english.strip()) and not official.strip()
         identical += bool(official) and english == official
         dev_notes += bool(row.get("DevNotes", "").strip())
-        issues.extend(_check_translation(english, revised, key, "RevisedKorean"))
+        issues.extend(
+            _check_translation(
+                english, revised, key, "RevisedKorean", source_build_id, source_fingerprint(row)
+            )
+        )
 
     glossary: list[dict[str, str]] = []
     if glossary_path is not None:
@@ -754,18 +790,9 @@ def validate(
             for key, item in overrides.items()
             if isinstance(item, dict) and item.get("status") == "approved"
         ]
-        manifest_path = source_manifest_path or terms_path.with_name("source.json")
-        source_build_id: str | None = None
         if approved_overrides:
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if not isinstance(manifest, dict):
-                    raise ValueError("Source manifest root must be a JSON object.")
-                build_id = manifest.get("steamBuildId")
-                if isinstance(build_id, str) and build_id.strip():
-                    source_build_id = build_id
-            except (OSError, json.JSONDecodeError, ValueError) as exc:
-                issues.append(Issue("error", "SOURCE_BUILD_UNAVAILABLE", str(exc)))
+            if source_build_error is not None:
+                issues.append(Issue("error", "SOURCE_BUILD_UNAVAILABLE", source_build_error))
             if source_build_id is None and not any(
                 issue.code == "SOURCE_BUILD_UNAVAILABLE" for issue in issues
             ):
@@ -851,7 +878,16 @@ def validate(
                             key,
                         )
                     )
-            issues.extend(_check_translation(row.get("English", ""), translation, key, "override"))
+            issues.extend(
+                _check_translation(
+                    row.get("English", ""),
+                    translation,
+                    key,
+                    "override",
+                    source_build_id,
+                    actual_fingerprint,
+                )
+            )
 
             for entry in glossary:
                 source_term = entry["Term"]

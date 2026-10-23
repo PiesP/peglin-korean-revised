@@ -307,7 +307,10 @@ def load_installation(game_root: Path) -> InstallationData:
     try:
         import UnityPy
     except ImportError as exc:
-        raise ExtractionError("UnityPy is missing; run `uv sync` in the project.") from exc
+        raise ExtractionError(
+            "UnityPy is missing; run `uv sync --locked --python 3.11 --extra extract` "
+            "and use `uv run --locked --extra extract peglin-l10n ...` for game commands."
+        ) from exc
 
     try:
         asset_stream = io.BytesIO(asset_bytes)

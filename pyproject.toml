@@ -3,9 +3,12 @@ name = "peglin-korean-revised"
 version = "0.1.0"
 description = "Local extraction and review tools for Peglin Korean localization"
 requires-python = ">=3.11"
-dependencies = ["unitypy==1.25.4"]
+dependencies = []
 license = "MIT"
 license-files = ["LICENSE"]
+
+[project.optional-dependencies]
+extract = ["unitypy==1.25.4"]
 
 [project.scripts]
 peglin-l10n = "peglin_l10n.cli:main"

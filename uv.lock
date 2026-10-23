@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -217,7 +217,9 @@ wheels = [
 name = "peglin-korean-revised"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.optional-dependencies]
+extract = [
     { name = "unitypy" },
 ]
 
@@ -227,7 +229,8 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "unitypy", specifier = "==1.25.4" }]
+requires-dist = [{ name = "unitypy", marker = "extra == 'extract'", specifier = "==1.25.4" }]
+provides-extras = ["extract"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = "==0.17.1" }]

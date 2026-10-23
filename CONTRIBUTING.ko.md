@@ -141,16 +141,23 @@ Python is the primary language for handwritten repository automation. The
 `[tool.maintenance]`, confirm it with `uv --version`, then run
 `uv sync --locked --python 3.11`. C# under `plugin/` is product
 code; workflow YAML, lockfiles, and generated release files are not scripts.
+The default install covers contribution checks and public release assembly.
+Commands that read the installed Peglin game need UnityPy from the `extract`
+extra: run `uv sync --locked --python 3.11 --extra extract`, then invoke them as
+`uv run --locked --extra extract peglin-l10n <command> ...`. The `--extra extract`
+on `uv run` keeps automatic synchronization from removing UnityPy. The same
+locked `uv.lock` resolves both environments; keep the complete graph in security
+scans.
 Check maintained Python code before committing with `uv run --locked ruff check .`
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
 
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
-| `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, locked UnityPy, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
-| `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and locked environment | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
-| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, .NET SDK, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
-| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, locked package environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
+| `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
+| `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
+| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, .NET SDK, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
+| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
