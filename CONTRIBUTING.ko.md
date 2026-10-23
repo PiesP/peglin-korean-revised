@@ -148,6 +148,15 @@ extra: run `uv sync --locked --python 3.11 --extra extract`, then invoke them as
 on `uv run` keeps automatic synchronization from removing UnityPy. The same
 locked `uv.lock` resolves both environments; keep the complete graph in security
 scans.
+The package uses `uv_build` for the maintained full-checkout editable workflow.
+Build and sync with the uv version selected by `[tool.maintenance]`; its bundled
+backend is the tested version. The `uv_build>=0.13.5,<0.14` range also permits
+compatible build frontends, so a uv upgrade or range change requires rebuilding
+the wheel and sdist and rechecking installed CLI and release behavior. The sdist
+intentionally contains only the Python package, license, and build metadata.
+Game-backed commands and public release assembly need the full checkout,
+including plugin and translation inputs; a standalone wheel or sdist is not a
+supported release source.
 Check maintained Python code before committing with `uv run --locked ruff check .`
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
