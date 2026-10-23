@@ -152,11 +152,25 @@ Check maintained Python code before committing with `uv run --locked ruff check 
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
 
+### .NET SDK selection
+
+Public C# builds, CodeQL's C# build and installed-game local candidates use the
+SDK selected by the root `global.json`. Run `dotnet --version` from the repository
+root and check that it matches `sdk.version`. If it differs or the SDK is missing,
+install the selected version and check again. Local `build-candidate` invokes
+`dotnet` from `plugin/`, so the same ancestor policy applies. Running
+`dotnet --version` outside the checkout may select a different policy.
+
+`rollForward: disable` requires the exact SDK. This fixes the build tool alongside
+the NuGet locks; adopting a security update requires changing `global.json` and
+revalidating public-stub and plugin builds. CI installs the SDK from that same
+file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
+
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
 | `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
 | `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
-| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, .NET SDK, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
+| `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, SDK from `global.json`, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
 | `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
