@@ -347,6 +347,99 @@ class TranslationDirectoryTests(unittest.TestCase):
                     {issue.term for issue in issues if issue.code == "PROTECTED_TOKEN_MISMATCH"},
                 )
 
+        mutated_rows = copy.deepcopy(rows)
+        mutated_rows[0]["Translation"] = mutated_rows[0]["Translation"].replace(
+            '<sprite name="PEG">', '<sprite name="OTHER">'
+        )
+        self._write_csv("relics.csv", mutated_rows)
+        summary, issues = validate_locked_translations(self.terms, lock)
+        self.assertEqual(1, summary["errors"])
+        self.assertEqual(
+            {cases[0][0]},
+            {issue.term for issue in issues if issue.code == "PROTECTED_TOKEN_MISMATCH"},
+        )
+
+    def test_snapshot_uses_source_bound_sprite_tag_repairs(self) -> None:
+        cases = [
+            (
+                "Relics/lifesteal_peg_hit_desc",
+                "<style=heal2>Steal</style> <style=damage>1 health</style> "
+                "from the targeted enemy for every {[INFERNAL_PEGS]} "
+                '<sprite name="PEG> <style=activate>Activated</style>.',
+                "Changed to Activated in v1.2.0 to match its actual functionality",
+                "5035aeae4c2eb68887b2bdc7c243933b342b9a979c540dee2b2551ac440cc894",
+            ),
+            (
+                "Relics/mental_mantle_desc",
+                "Immediately deal <style=damage>1 damage</style> to the targeted "
+                'enemy for every {[DAMAGE_ON_PEG_COUNT]} <sprite name="PEG> '
+                "<style=activate>Activated</style>.",
+                "",
+                "b20efa66db9d16dc666ea54a606f383891a4cce05ec0897e0a93caa40c5c2a57",
+            ),
+        ]
+        source_rows = []
+        overrides = {}
+        for term, english, dev_notes, fingerprint in cases:
+            translation = english.replace('<sprite name="PEG>', '<sprite name="PEG">')
+            row = {
+                "Term": term,
+                "Category": "Relics",
+                "English": english,
+                "DevNotes": dev_notes,
+                "I2Description": "",
+                "OfficialKorean": "",
+                "RevisedKorean": english,
+                "Status": "unreviewed",
+                "Comment": "",
+            }
+            self.assertEqual(fingerprint, source_fingerprint(row))
+            source_rows.append(row)
+            overrides[term] = {
+                "translation": translation,
+                "status": "draft",
+                "sourceFingerprint": fingerprint,
+            }
+
+        terms_path = self.root / "source.csv"
+        manifest_path = self.root / "source.json"
+        overrides_path = self.root / "overrides.json"
+
+        def check(
+            rows: list[dict[str, str]],
+            entries: dict[str, dict[str, str]],
+            build_id: str = "22988052",
+        ) -> set[str]:
+            with terms_path.open("w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, lineterminator="\n")
+                writer.writeheader()
+                writer.writerows(rows)
+            manifest_path.write_text(json.dumps({"steamBuildId": build_id}), encoding="utf-8")
+            overrides_path.write_text(
+                json.dumps({"terms": entries, "schemaVersion": 1}), encoding="utf-8"
+            )
+            _, issues = validate(
+                terms_path, overrides_path=overrides_path, source_manifest_path=manifest_path
+            )
+            return {issue.term for issue in issues if issue.code == "PROTECTED_TOKEN_MISMATCH"}
+
+        self.assertEqual(set(), check(source_rows, overrides))
+        repaired_rows = copy.deepcopy(source_rows)
+        for row in repaired_rows:
+            row["RevisedKorean"] = overrides[row["Term"]]["translation"]
+        self.assertEqual(set(), check(repaired_rows, overrides))
+        self.assertEqual({case[0] for case in cases}, check(source_rows, overrides, "22988053"))
+
+        changed_rows = copy.deepcopy(source_rows)
+        changed_rows[0]["DevNotes"] += "."
+        self.assertEqual({cases[0][0]}, check(changed_rows, overrides))
+
+        changed_overrides = copy.deepcopy(overrides)
+        changed_overrides[cases[0][0]]["translation"] = changed_overrides[cases[0][0]][
+            "translation"
+        ].replace('<sprite name="PEG">', '<sprite name="OTHER">')
+        self.assertEqual({cases[0][0]}, check(source_rows, changed_overrides))
+
     def test_glossary_does_not_split_hyphenated_game_names(self) -> None:
         terms_path = self.root / "source.csv"
         source_rows = [
