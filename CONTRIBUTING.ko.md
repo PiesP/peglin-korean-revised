@@ -197,6 +197,20 @@ installed ZIP total. The tracked release DLL is identified separately from a
 public-reference or installed-game build. Keep the report and comparison decision
 in the owning review record; it is not an eighth public release file.
 
+The tracked release DLL retains its historical source-input association from
+`c68920cacea8b052cf67894f9117aabf43fdd32a`. The separate
+`translation/runtime-retention.json` records the exact source inputs from that
+commit and the current input digest after the BepInEx compile dependency change.
+Release validation checks the unchanged `Plugin.cs` and `NuGet.Config` bytes,
+reconstructs the historical input digest, and requires the exact current input
+digest and tracked DLL hash. Any further drift fails closed. The receipt does
+not claim the tracked DLL was rebuilt from the current inputs: the #48
+installed-game before/after comparison produced byte-identical pairs of its own
+DLL and ZIP, but that diagnostic DLL differs from the tracked release DLL.
+The source lock's historical DLL and input hashes, supported-game file hashes,
+public manifest schema and seven release files remain unchanged. The optional
+footprint report identifies both input digests and the receipt hash.
+
 | Workflow helper | Runtime, inputs and effects | Tests |
 | --- | --- | --- |
 | `python3 .github/scripts/resolve_toolchains.py` | Bootstrap Python on Ubuntu before setup-python or `uv`; reads only `pyproject.toml` with standard-library `tomllib`, appends validated Python/uv versions to `GITHUB_OUTPUT`. It cannot import installed project dependencies or assume a newer bootstrap Python. | `test_toolchain_selection.py` |

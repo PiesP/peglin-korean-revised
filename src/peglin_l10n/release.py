@@ -19,6 +19,8 @@ from .patching import create_locked_overlay_patch
 from .release_tag import is_release_tag, validate_release_tag_status
 from .source_lock import (
     DEFAULT_PLUGIN_SOURCE_INPUTS,
+    RETAINED_RUNTIME_RECEIPT,
+    plugin_source_inputs_sha256,
     read_source_lock,
     sha256_file,
     validate_runtime_provenance,
@@ -39,6 +41,8 @@ def _write_footprint_report(
     source_lock_path: Path,
     project_root: Path,
     source_revision: str,
+    source_lock: dict[str, Any],
+    plugin_source_inputs: tuple[str, ...],
 ) -> None:
     """Record actual install-ZIP bytes without changing the seven release assets."""
 
@@ -91,10 +95,23 @@ def _write_footprint_report(
         raise ValueError("Candidate footprint does not match the release manifest identity.")
     uv_lock = project_root / "uv.lock"
     pyproject = project_root / "pyproject.toml"
+    current_inputs_hash = plugin_source_inputs_sha256(project_root, plugin_source_inputs)
+    historical_inputs_hash = source_lock["runtime"]["sourceInputsSha256"]
+    retained = current_inputs_hash != historical_inputs_hash
+    retention_path = project_root / RETAINED_RUNTIME_RECEIPT
+    retention_receipt = json.loads(retention_path.read_text(encoding="utf-8")) if retained else None
     report = {
         "schema_version": 1,
         "source_revision": source_revision,
-        "dll_origin": "tracked release DLL validated by source-lock.json",
+        "runtime_provenance": {
+            "origin": "retained historical DLL" if retained else "current locked plugin inputs",
+            "historical_source_revision": (
+                retention_receipt["historicalSourceRevision"] if retention_receipt else None
+            ),
+            "historical_source_inputs_sha256": historical_inputs_hash,
+            "current_source_inputs_sha256": current_inputs_hash,
+            "retention_receipt_sha256": sha256_file(retention_path) if retained else None,
+        },
         "source_lock_sha256": sha256_file(source_lock_path),
         "release_manifest_sha256": sha256_file(release_manifest_path),
         "uv_lock_sha256": sha256_file(uv_lock) if uv_lock.is_file() else None,
@@ -201,6 +218,7 @@ def build_release_candidate(
 
     if REVISION_PATTERN.fullmatch(source_revision) is None or ".." in source_revision:
         raise ValueError("Source revision contains unsupported characters.")
+    plugin_source_inputs = tuple(plugin_source_inputs)
     if not isinstance(release_tag, str):
         raise ValueError("Release tag must be a string.")
     if not is_release_tag(release_tag):
@@ -298,6 +316,8 @@ def build_release_candidate(
             source_lock_path,
             project_root,
             source_revision,
+            source_lock,
+            plugin_source_inputs,
         )
     return {
         "overlay": overlay_path,

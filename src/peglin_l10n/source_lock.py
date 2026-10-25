@@ -35,6 +35,12 @@ DEFAULT_PLUGIN_SOURCE_INPUTS = (
     "plugin/Plugin.cs",
     "plugin/packages.lock.json",
 )
+RETAINED_RUNTIME_RECEIPT = "translation/runtime-retention.json"
+RETAINED_RUNTIME_SOURCE_REVISION = "c68920cacea8b052cf67894f9117aabf43fdd32a"
+RETAINED_CHANGED_INPUTS = (
+    "plugin/PeglinKoreanRevised.csproj",
+    "plugin/packages.lock.json",
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -67,6 +73,77 @@ def plugin_source_inputs_sha256(
         digest.update(len(contents).to_bytes(8, byteorder="big"))
         digest.update(contents)
     return digest.hexdigest()
+
+
+def validate_retained_runtime(
+    project_root: Path,
+    runtime: dict[str, Any],
+    current_inputs_hash: str,
+) -> dict[str, Any]:
+    """Check the exact historical inputs retained with a prebuilt runtime DLL."""
+
+    path = project_root / RETAINED_RUNTIME_RECEIPT
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Runtime retention receipt is missing or invalid: {exc}") from exc
+    fields = {
+        "schemaVersion",
+        "kind",
+        "historicalSourceRevision",
+        "runtimeSha256",
+        "historicalSourceInputsSha256",
+        "currentSourceInputsSha256",
+        "unchangedInputsSha256",
+        "historicalChangedInputs",
+    }
+    if not isinstance(receipt, dict) or set(receipt) != fields:
+        raise ValueError("Runtime retention receipt fields are invalid.")
+    if (
+        receipt["schemaVersion"] != 1
+        or receipt["kind"] != "peglin-retained-runtime"
+        or not isinstance(receipt["historicalSourceRevision"], str)
+        or re.fullmatch(r"[0-9a-f]{40}", receipt["historicalSourceRevision"]) is None
+        or receipt["historicalSourceRevision"] != RETAINED_RUNTIME_SOURCE_REVISION
+        or receipt["runtimeSha256"] != runtime["sha256"]
+        or receipt["historicalSourceInputsSha256"] != runtime["sourceInputsSha256"]
+        or receipt["currentSourceInputsSha256"] != current_inputs_hash
+    ):
+        raise ValueError("Runtime retention receipt does not match locked DLL and inputs.")
+    unchanged = receipt["unchangedInputsSha256"]
+    historical = receipt["historicalChangedInputs"]
+    unchanged_paths = set(DEFAULT_PLUGIN_SOURCE_INPUTS) - set(RETAINED_CHANGED_INPUTS)
+    if (
+        not isinstance(unchanged, dict)
+        or set(unchanged) != unchanged_paths
+        or not isinstance(historical, dict)
+        or set(historical) != set(RETAINED_CHANGED_INPUTS)
+    ):
+        raise ValueError("Runtime retention input inventory is invalid.")
+    digest = hashlib.sha256()
+    for relative_path in sorted(DEFAULT_PLUGIN_SOURCE_INPUTS):
+        if relative_path in historical:
+            historical_text = historical[relative_path]
+            if not isinstance(historical_text, str):
+                raise ValueError("Runtime retention historical input is invalid.")
+            contents = historical_text.encode("utf-8")
+        else:
+            expected_hash = unchanged[relative_path]
+            if (
+                not isinstance(expected_hash, str)
+                or SHA256_PATTERN.fullmatch(expected_hash) is None
+            ):
+                raise ValueError("Runtime retention unchanged input hash is invalid.")
+            contents = (project_root / relative_path).read_bytes()
+            if hashlib.sha256(contents).hexdigest() != expected_hash:
+                raise ValueError("Runtime retention unchanged plugin input drifted.")
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(len(contents).to_bytes(8, byteorder="big"))
+        digest.update(contents)
+    if digest.hexdigest() != runtime["sourceInputsSha256"]:
+        raise ValueError("Runtime retention historical inputs do not match source-lock.json.")
+    return receipt
 
 
 def category_slug(category: str) -> str:
@@ -210,6 +287,7 @@ def validate_runtime_provenance(
     source_inputs: Iterable[str] = DEFAULT_PLUGIN_SOURCE_INPUTS,
     package_version: str | None = None,
 ) -> Path:
+    source_inputs = tuple(source_inputs)
     runtime = source_lock["runtime"]
     declared_version = plugin_source_version(project_root)
     if runtime["pluginVersion"] != declared_version:
@@ -227,5 +305,7 @@ def validate_runtime_provenance(
         raise ValueError("Tracked runtime plugin hash does not match source-lock.json.")
     actual_inputs_hash = plugin_source_inputs_sha256(project_root, source_inputs)
     if actual_inputs_hash != runtime["sourceInputsSha256"]:
-        raise ValueError("Plugin source inputs do not match source-lock.json.")
+        if tuple(source_inputs) != DEFAULT_PLUGIN_SOURCE_INPUTS:
+            raise ValueError("Plugin source inputs do not match source-lock.json.")
+        validate_retained_runtime(project_root, runtime, actual_inputs_hash)
     return plugin_path

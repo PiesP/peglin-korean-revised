@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -20,7 +21,11 @@ from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
 from peglin_l10n.patching import create_locked_overlay_patch
 from peglin_l10n.release import build_release_candidate
-from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
+from peglin_l10n.source_lock import (
+    plugin_source_inputs_sha256,
+    read_source_lock,
+    validate_runtime_provenance,
+)
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
     protected_tokens,
@@ -513,6 +518,83 @@ class TranslationDirectoryTests(unittest.TestCase):
         self.assertEqual(["Orbs/orb_bonus_desc"], glossary_mismatches)
 
 
+class TrackedReleaseProvenanceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        project = Path(__file__).resolve().parents[1]
+        self.lock = read_source_lock(project / "translation" / "source-lock.json")
+        for relative in (
+            "runtime/PeglinKoreanRevised.dll",
+            "translation/runtime-retention.json",
+            "plugin/NuGet.Config",
+            "plugin/PeglinKoreanRevised.csproj",
+            "plugin/Plugin.cs",
+            "plugin/packages.lock.json",
+        ):
+            destination = self.root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(project / relative, destination)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def _receipt(self) -> dict[str, object]:
+        return json.loads((self.root / "translation/runtime-retention.json").read_text())
+
+    def _write_receipt(self, receipt: dict[str, object]) -> None:
+        (self.root / "translation/runtime-retention.json").write_text(json.dumps(receipt))
+
+    def test_retained_historical_runtime_is_bound_to_exact_current_inputs(self) -> None:
+        plugin = validate_runtime_provenance(self.root, self.lock)
+        self.assertEqual(self.root / self.lock["runtime"]["path"], plugin)
+        receipt = self._receipt()
+        self.assertEqual(
+            self.lock["runtime"]["sourceInputsSha256"], receipt["historicalSourceInputsSha256"]
+        )
+        self.assertNotEqual(
+            receipt["historicalSourceInputsSha256"], receipt["currentSourceInputsSha256"]
+        )
+
+    def test_retained_runtime_rejects_current_input_drift(self) -> None:
+        with (self.root / "plugin/PeglinKoreanRevised.csproj").open("a") as stream:
+            stream.write("<!-- changed -->\n")
+        with self.assertRaisesRegex(ValueError, "receipt does not match locked DLL and inputs"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_unchanged_source_drift_even_with_updated_digest(self) -> None:
+        with (self.root / "plugin/Plugin.cs").open("a") as stream:
+            stream.write("// changed\n")
+        receipt = self._receipt()
+        receipt["currentSourceInputsSha256"] = plugin_source_inputs_sha256(self.root)
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "unchanged plugin input drifted"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_dll_change(self) -> None:
+        with (self.root / "runtime/PeglinKoreanRevised.dll").open("ab") as stream:
+            stream.write(b"changed")
+        with self.assertRaisesRegex(ValueError, "Tracked runtime plugin hash"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_wrong_historical_inputs_and_bad_revision(self) -> None:
+        receipt = self._receipt()
+        receipt["historicalChangedInputs"]["plugin/packages.lock.json"] += "\n"
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "historical inputs do not match"):
+            validate_runtime_provenance(self.root, self.lock)
+        receipt = self._receipt()
+        receipt["historicalSourceRevision"] = "0" * 40
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "receipt does not match locked DLL and inputs"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_missing_receipt(self) -> None:
+        (self.root / "translation/runtime-retention.json").unlink()
+        with self.assertRaisesRegex(ValueError, "receipt is missing or invalid"):
+            validate_runtime_provenance(self.root, self.lock)
+
+
 class ReleasePackagingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -728,6 +810,11 @@ class ReleasePackagingTests(unittest.TestCase):
         )
         report = json.loads(report_path.read_text(encoding="utf-8"))
         self.assertEqual(source_sha, report["source_revision"])
+        self.assertEqual("current locked plugin inputs", report["runtime_provenance"]["origin"])
+        self.assertEqual(
+            report["runtime_provenance"]["historical_source_inputs_sha256"],
+            report["runtime_provenance"]["current_source_inputs_sha256"],
+        )
         self.assertEqual(7, len(list(output_dir.iterdir())))
         self.assertEqual(6, len(report["install_zip"]["members"]))
         zip_path = next(output_dir.glob("*.zip"))
