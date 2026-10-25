@@ -22,6 +22,7 @@ from .extract import (
     write_snapshot,
 )
 from .fingerprints import source_fingerprint
+from .manager_package import create_manager_package
 from .patching import create_overlay_patch
 from .release import build_release_candidate
 from .validation import index_terms_csv, lint_overrides, validate
@@ -172,6 +173,18 @@ def _parser() -> argparse.ArgumentParser:
         default=DEFAULT_SOURCE_LOCK,
         help="public source metadata lock",
     )
+
+    manager = subparsers.add_parser(
+        "build-local-manager-package",
+        help="repackage a qualified client ZIP for experimental local manager testing",
+    )
+    manager.add_argument("--input-zip", required=True, type=Path)
+    manager.add_argument(
+        "--input-sha256",
+        required=True,
+        help="expected SHA-256 of the complete qualified input ZIP",
+    )
+    manager.add_argument("--output-zip", required=True, type=Path)
 
     lint = subparsers.add_parser(
         "lint-overrides",
@@ -389,6 +402,16 @@ def _run_build_release_candidate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_build_local_manager_package(args: argparse.Namespace) -> int:
+    try:
+        path = create_manager_package(args.input_zip, args.input_sha256, args.output_zip)
+    except (OSError, ValueError) as exc:
+        print(f"Local manager package generation stopped safely: {exc}", file=sys.stderr)
+        return 2
+    print(f"Local manager candidate: {path}")
+    return 0
+
+
 def _run_lint_overrides(args: argparse.Namespace) -> int:
     try:
         summary, issues = lint_overrides(args.overrides)
@@ -466,6 +489,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_build_candidate(args)
         if args.command == "build-release-candidate":
             return _run_build_release_candidate(args)
+        if args.command == "build-local-manager-package":
+            return _run_build_local_manager_package(args)
         if args.command == "lint-overrides":
             return _run_lint_overrides(args)
         if args.command == "validate":

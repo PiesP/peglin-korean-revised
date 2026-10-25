@@ -183,6 +183,7 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 | `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
 | `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, SDK from `global.json`, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
 | `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums. Optional `--footprint-report` writes a separate JSON report from a clean full-SHA checkout; `test_public_release.py` |
+| `peglin-l10n build-local-manager-package` | Repackage a separately qualified client ZIP as an experimental local Thunderstore-format candidate; `cli.py`, `manager_package.py` | Python 3.11 and the default locked environment; no game or SDK | Requires `--input-zip`, the independently recorded complete ZIP `--input-sha256`, and `--output-zip`. Validates the six input members, draft build identity and file hashes, then writes an atomic deterministic ZIP outside the seven-file public release contract; `test_manager_package.py`. This does not qualify manager installation or gameplay. |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
@@ -196,6 +197,15 @@ is also a separate release asset, so its standalone bytes are not added to the
 installed ZIP total. The tracked release DLL is identified separately from a
 public-reference or installed-game build. Keep the report and comparison decision
 in the owning review record; it is not an eighth public release file.
+
+The local manager candidate has its own root `manifest.json` and `icon.png`.
+The root manifest is distinct from the unchanged plugin integrity manifest under
+`BepInEx/plugins/PeglinKoreanRevised/`. Generate the PNG from its original SVG
+with `python3 scripts/generate_manager_icon.py` (`rsvg-convert` required).
+Use an independently qualified client ZIP SHA-256 as the command's input anchor;
+the command's validation alone cannot establish that an arbitrary DLL was tested
+against the supported game. Never place this candidate in the public release
+artifact directory or claim manager profile behavior before runtime acceptance.
 
 The tracked release DLL retains its historical source-input association from
 `c68920cacea8b052cf67894f9117aabf43fdd32a`. The separate
