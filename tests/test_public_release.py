@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -695,6 +696,88 @@ class ReleasePackagingTests(unittest.TestCase):
             manifest["runtime"]["pluginVersion"],
             package_manifest["runtime"]["pluginVersion"],
         )
+
+    def test_optional_footprint_reconciles_zip_and_rejects_source_drift(self) -> None:
+        (self.root / "pyproject.toml").write_text("[project]\nname = 'fixture'\n", encoding="utf-8")
+        (self.root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "config", "user.name", "Fixture"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.root), "config", "user.email", "fixture@example.invalid"],
+            check=True,
+        )
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "fixture"], check=True)
+        source_sha = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        output_dir = self.root / "reported-release"
+        report_path = self.root / "footprint.json"
+        build_release_candidate(
+            self.root / "translation" / "terms",
+            self.lock_path,
+            self.root,
+            source_sha,
+            output_dir,
+            release_tag="peglin-ko-v1.0.0-rc.1",
+            plugin_source_inputs=self.plugin_inputs,
+            footprint_report=report_path,
+        )
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(source_sha, report["source_revision"])
+        self.assertEqual(7, len(list(output_dir.iterdir())))
+        self.assertEqual(6, len(report["install_zip"]["members"]))
+        zip_path = next(output_dir.glob("*.zip"))
+        self.assertEqual(
+            hashlib.sha256(zip_path.read_bytes()).hexdigest(), report["install_zip"]["sha256"]
+        )
+        self.assertEqual(zip_path.stat().st_size, report["install_zip"]["bytes"])
+        self.assertEqual(
+            report["install_zip"]["bytes"],
+            report["install_zip"]["member_compressed_bytes"]
+            + report["install_zip"]["container_overhead_bytes"],
+        )
+        self.assertGreater(report["install_zip"]["container_overhead_bytes"], 0)
+        with zipfile.ZipFile(zip_path) as archive:
+            for row in report["install_zip"]["members"]:
+                info = archive.getinfo(row["name"])
+                self.assertEqual(info.file_size, row["uncompressed_bytes"])
+                self.assertEqual(info.compress_size, row["compressed_bytes"])
+                self.assertEqual(hashlib.sha256(archive.read(info)).hexdigest(), row["sha256"])
+        self.assertEqual(
+            report["standalone_overlay"]["sha256"],
+            next(
+                row["sha256"]
+                for row in report["install_zip"]["members"]
+                if row["name"].endswith("/overlay.json")
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                source_sha,
+                output_dir,
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
+                footprint_report=report_path,
+            )
+        (self.root / "LICENSE").write_text("changed license\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "exact clean checked-out source"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                source_sha,
+                self.root / "dirty-release",
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
+                footprint_report=self.root / "dirty-report.json",
+            )
 
     def test_release_license_replace_failure_keeps_existing_destination(self) -> None:
         output_dir = self.root / "release"

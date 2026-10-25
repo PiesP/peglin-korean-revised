@@ -156,6 +156,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     release.add_argument("--output-dir", required=True, type=Path)
     release.add_argument(
+        "--footprint-report",
+        type=Path,
+        help="write a source-bound size report outside the seven-file release directory",
+    )
+    release.add_argument(
         "--translations",
         type=Path,
         default=DEFAULT_TRANSLATIONS,
@@ -372,12 +377,15 @@ def _run_build_release_candidate(args: argparse.Namespace) -> int:
             args.source_revision,
             args.output_dir,
             release_tag=args.release_tag,
+            footprint_report=args.footprint_report,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Release candidate generation stopped safely: {exc}", file=sys.stderr)
         return 2
     for label, path in paths.items():
         print(f"{label}: {path}")
+    if args.footprint_report is not None:
+        print(f"footprintReport: {args.footprint_report.expanduser().resolve()}")
     return 0
 
 
