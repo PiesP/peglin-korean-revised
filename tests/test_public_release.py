@@ -20,7 +20,11 @@ from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
 from peglin_l10n.patching import create_locked_overlay_patch
 from peglin_l10n.release import build_release_candidate
-from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
+from peglin_l10n.source_lock import (
+    plugin_source_inputs_sha256,
+    read_source_lock,
+    validate_runtime_provenance,
+)
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
     protected_tokens,
@@ -511,6 +515,14 @@ class TranslationDirectoryTests(unittest.TestCase):
         _, issues = validate(terms_path, glossary_path, overrides_path)
         glossary_mismatches = [issue.term for issue in issues if issue.code == "GLOSSARY_MISMATCH"]
         self.assertEqual(["Orbs/orb_bonus_desc"], glossary_mismatches)
+
+
+class TrackedReleaseProvenanceTests(unittest.TestCase):
+    def test_current_release_dll_and_plugin_inputs_match_source_lock(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        source_lock = read_source_lock(project_root / "translation" / "source-lock.json")
+        plugin = validate_runtime_provenance(project_root, source_lock)
+        self.assertEqual(project_root / source_lock["runtime"]["path"], plugin)
 
 
 class ReleasePackagingTests(unittest.TestCase):
