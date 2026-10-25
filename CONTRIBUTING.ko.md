@@ -182,11 +182,34 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 | `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
 | `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
 | `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, SDK from `global.json`, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
-| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums; `test_public_release.py` |
+| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums. Optional `--footprint-report` writes a separate JSON report from a clean full-SHA checkout; `test_public_release.py` |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
 | `peglin-l10n fingerprint` | Compute one source row fingerprint; `cli.py`, `fingerprints.py` | Locked package environment and local `terms.csv` | `--terms`, `--term`; JSON stdout, no writes; package tests |
+
+For a nonpublishing size review, run `build-release-candidate` from a clean
+full-SHA checkout with `--footprint-report` pointing outside `--output-dir`.
+The optional report reconciles the six install-ZIP members, compressed member
+bytes and container overhead with the actual ZIP length and hashes. The overlay
+is also a separate release asset, so its standalone bytes are not added to the
+installed ZIP total. The tracked release DLL is identified separately from a
+public-reference or installed-game build. Keep the report and comparison decision
+in the owning review record; it is not an eighth public release file.
+
+The tracked release DLL retains its historical source-input association from
+`c68920cacea8b052cf67894f9117aabf43fdd32a`. The separate
+`translation/runtime-retention.json` records the exact source inputs from that
+commit and the current input digest after the BepInEx compile dependency change.
+Release validation checks the unchanged `Plugin.cs` and `NuGet.Config` bytes,
+reconstructs the historical input digest, and requires the exact current input
+digest and tracked DLL hash. Any further drift fails closed. The receipt does
+not claim the tracked DLL was rebuilt from the current inputs: the #48
+installed-game before/after comparison produced byte-identical pairs of its own
+DLL and ZIP, but that diagnostic DLL differs from the tracked release DLL.
+The source lock's historical DLL and input hashes, supported-game file hashes,
+public manifest schema and seven release files remain unchanged. The optional
+footprint report identifies both input digests and the receipt hash.
 
 | Workflow helper | Runtime, inputs and effects | Tests |
 | --- | --- | --- |

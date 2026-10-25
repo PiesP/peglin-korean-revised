@@ -6,6 +6,8 @@ import hashlib
 import io
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -19,7 +21,11 @@ from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
 from peglin_l10n.patching import create_locked_overlay_patch
 from peglin_l10n.release import build_release_candidate
-from peglin_l10n.source_lock import plugin_source_inputs_sha256, read_source_lock
+from peglin_l10n.source_lock import (
+    plugin_source_inputs_sha256,
+    read_source_lock,
+    validate_runtime_provenance,
+)
 from peglin_l10n.validation import (
     TRANSLATION_FIELDS,
     protected_tokens,
@@ -512,6 +518,83 @@ class TranslationDirectoryTests(unittest.TestCase):
         self.assertEqual(["Orbs/orb_bonus_desc"], glossary_mismatches)
 
 
+class TrackedReleaseProvenanceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        project = Path(__file__).resolve().parents[1]
+        self.lock = read_source_lock(project / "translation" / "source-lock.json")
+        for relative in (
+            "runtime/PeglinKoreanRevised.dll",
+            "translation/runtime-retention.json",
+            "plugin/NuGet.Config",
+            "plugin/PeglinKoreanRevised.csproj",
+            "plugin/Plugin.cs",
+            "plugin/packages.lock.json",
+        ):
+            destination = self.root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(project / relative, destination)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def _receipt(self) -> dict[str, object]:
+        return json.loads((self.root / "translation/runtime-retention.json").read_text())
+
+    def _write_receipt(self, receipt: dict[str, object]) -> None:
+        (self.root / "translation/runtime-retention.json").write_text(json.dumps(receipt))
+
+    def test_retained_historical_runtime_is_bound_to_exact_current_inputs(self) -> None:
+        plugin = validate_runtime_provenance(self.root, self.lock)
+        self.assertEqual(self.root / self.lock["runtime"]["path"], plugin)
+        receipt = self._receipt()
+        self.assertEqual(
+            self.lock["runtime"]["sourceInputsSha256"], receipt["historicalSourceInputsSha256"]
+        )
+        self.assertNotEqual(
+            receipt["historicalSourceInputsSha256"], receipt["currentSourceInputsSha256"]
+        )
+
+    def test_retained_runtime_rejects_current_input_drift(self) -> None:
+        with (self.root / "plugin/PeglinKoreanRevised.csproj").open("a") as stream:
+            stream.write("<!-- changed -->\n")
+        with self.assertRaisesRegex(ValueError, "receipt does not match locked DLL and inputs"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_unchanged_source_drift_even_with_updated_digest(self) -> None:
+        with (self.root / "plugin/Plugin.cs").open("a") as stream:
+            stream.write("// changed\n")
+        receipt = self._receipt()
+        receipt["currentSourceInputsSha256"] = plugin_source_inputs_sha256(self.root)
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "unchanged plugin input drifted"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_dll_change(self) -> None:
+        with (self.root / "runtime/PeglinKoreanRevised.dll").open("ab") as stream:
+            stream.write(b"changed")
+        with self.assertRaisesRegex(ValueError, "Tracked runtime plugin hash"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_wrong_historical_inputs_and_bad_revision(self) -> None:
+        receipt = self._receipt()
+        receipt["historicalChangedInputs"]["plugin/packages.lock.json"] += "\n"
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "historical inputs do not match"):
+            validate_runtime_provenance(self.root, self.lock)
+        receipt = self._receipt()
+        receipt["historicalSourceRevision"] = "0" * 40
+        self._write_receipt(receipt)
+        with self.assertRaisesRegex(ValueError, "receipt does not match locked DLL and inputs"):
+            validate_runtime_provenance(self.root, self.lock)
+
+    def test_retained_runtime_rejects_missing_receipt(self) -> None:
+        (self.root / "translation/runtime-retention.json").unlink()
+        with self.assertRaisesRegex(ValueError, "receipt is missing or invalid"):
+            validate_runtime_provenance(self.root, self.lock)
+
+
 class ReleasePackagingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -695,6 +778,93 @@ class ReleasePackagingTests(unittest.TestCase):
             manifest["runtime"]["pluginVersion"],
             package_manifest["runtime"]["pluginVersion"],
         )
+
+    def test_optional_footprint_reconciles_zip_and_rejects_source_drift(self) -> None:
+        (self.root / "pyproject.toml").write_text("[project]\nname = 'fixture'\n", encoding="utf-8")
+        (self.root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "config", "user.name", "Fixture"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.root), "config", "user.email", "fixture@example.invalid"],
+            check=True,
+        )
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "fixture"], check=True)
+        source_sha = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        output_dir = self.root / "reported-release"
+        report_path = self.root / "footprint.json"
+        build_release_candidate(
+            self.root / "translation" / "terms",
+            self.lock_path,
+            self.root,
+            source_sha,
+            output_dir,
+            release_tag="peglin-ko-v1.0.0-rc.1",
+            plugin_source_inputs=self.plugin_inputs,
+            footprint_report=report_path,
+        )
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(source_sha, report["source_revision"])
+        self.assertEqual("current locked plugin inputs", report["runtime_provenance"]["origin"])
+        self.assertEqual(
+            report["runtime_provenance"]["historical_source_inputs_sha256"],
+            report["runtime_provenance"]["current_source_inputs_sha256"],
+        )
+        self.assertEqual(7, len(list(output_dir.iterdir())))
+        self.assertEqual(6, len(report["install_zip"]["members"]))
+        zip_path = next(output_dir.glob("*.zip"))
+        self.assertEqual(
+            hashlib.sha256(zip_path.read_bytes()).hexdigest(), report["install_zip"]["sha256"]
+        )
+        self.assertEqual(zip_path.stat().st_size, report["install_zip"]["bytes"])
+        self.assertEqual(
+            report["install_zip"]["bytes"],
+            report["install_zip"]["member_compressed_bytes"]
+            + report["install_zip"]["container_overhead_bytes"],
+        )
+        self.assertGreater(report["install_zip"]["container_overhead_bytes"], 0)
+        with zipfile.ZipFile(zip_path) as archive:
+            for row in report["install_zip"]["members"]:
+                info = archive.getinfo(row["name"])
+                self.assertEqual(info.file_size, row["uncompressed_bytes"])
+                self.assertEqual(info.compress_size, row["compressed_bytes"])
+                self.assertEqual(hashlib.sha256(archive.read(info)).hexdigest(), row["sha256"])
+        self.assertEqual(
+            report["standalone_overlay"]["sha256"],
+            next(
+                row["sha256"]
+                for row in report["install_zip"]["members"]
+                if row["name"].endswith("/overlay.json")
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                source_sha,
+                output_dir,
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
+                footprint_report=report_path,
+            )
+        (self.root / "LICENSE").write_text("changed license\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "exact clean checked-out source"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                source_sha,
+                self.root / "dirty-release",
+                release_tag="peglin-ko-v1.0.0-rc.1",
+                plugin_source_inputs=self.plugin_inputs,
+                footprint_report=self.root / "dirty-report.json",
+            )
 
     def test_release_license_replace_failure_keeps_existing_destination(self) -> None:
         output_dir = self.root / "release"
