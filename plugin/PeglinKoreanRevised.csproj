@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BepInEx.BaseLib" Version="5.4.20" ExcludeAssets="runtime" />
+    <PackageReference Include="BepInEx.BaseLib" Version="5.4.21" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
