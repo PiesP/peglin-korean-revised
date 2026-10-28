@@ -15,7 +15,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from peglin_l10n import atomic_write
+from peglin_l10n import atomic_write, release
 from peglin_l10n.cli import main
 from peglin_l10n.extract import CSV_FIELDS
 from peglin_l10n.fingerprints import source_fingerprint
@@ -866,11 +866,23 @@ class ReleasePackagingTests(unittest.TestCase):
                 footprint_report=self.root / "dirty-report.json",
             )
 
-    def test_release_license_replace_failure_keeps_existing_destination(self) -> None:
+    def test_release_reuse_rejects_before_changing_completed_generation(self) -> None:
         output_dir = self.root / "release"
-        output_dir.mkdir()
+        build_release_candidate(
+            self.root / "translation" / "terms",
+            self.lock_path,
+            self.root,
+            "old123",
+            output_dir,
+            release_tag="peglin-ko-v1.0.0-rc.1",
+            plugin_source_inputs=self.plugin_inputs,
+        )
+        original_files = {path.name: path.read_bytes() for path in output_dir.iterdir()}
+        csv_path = self.root / "translation" / "terms" / "general.csv"
+        csv_path.write_text(
+            csv_path.read_text(encoding="utf-8").replace("피해 {0}", "공격 {0}"), encoding="utf-8"
+        )
         license_path = output_dir / "LICENSE"
-        license_path.write_bytes(b"previous license")
         original_replace = os.replace
 
         def fail_license_replace(source: Path, destination: Path) -> None:
@@ -879,18 +891,132 @@ class ReleasePackagingTests(unittest.TestCase):
             original_replace(source, destination)
 
         with patch.object(atomic_write.os, "replace", side_effect=fail_license_replace):
-            with self.assertRaisesRegex(OSError, "injected license replacement failure"):
+            with self.assertRaisesRegex(FileExistsError, "already exists"):
                 build_release_candidate(
                     self.root / "translation" / "terms",
                     self.lock_path,
                     self.root,
-                    "abc123",
+                    "new456",
                     output_dir,
                     release_tag="peglin-ko-v1.0.0-rc.1",
                     plugin_source_inputs=self.plugin_inputs,
                 )
-        self.assertEqual(b"previous license", license_path.read_bytes())
-        self.assertEqual([], list(output_dir.glob(".LICENSE.*.tmp")))
+        self.assertEqual(
+            original_files, {path.name: path.read_bytes() for path in output_dir.iterdir()}
+        )
+
+    def test_release_failed_writes_leave_no_completion_marker_and_retry_uses_new_path(self) -> None:
+        original_replace = os.replace
+        for failed_name in ("LICENSE", "SHA256SUMS.txt"):
+            with self.subTest(failed_name=failed_name):
+                output_dir = self.root / f"failed-{failed_name}"
+
+                def fail_selected_replace(source: Path, destination: Path) -> None:
+                    if destination == output_dir / failed_name:
+                        raise OSError("injected release write failure")
+                    original_replace(source, destination)
+
+                with patch.object(atomic_write.os, "replace", side_effect=fail_selected_replace):
+                    with self.assertRaisesRegex(OSError, "injected release write failure"):
+                        build_release_candidate(
+                            self.root / "translation" / "terms",
+                            self.lock_path,
+                            self.root,
+                            "a" * 40,
+                            output_dir,
+                            release_tag="peglin-ko-v1.0.0-rc.1",
+                            plugin_source_inputs=self.plugin_inputs,
+                        )
+                self.assertTrue(output_dir.is_dir())
+                self.assertFalse((output_dir / "SHA256SUMS.txt").exists())
+                self.assertEqual([], list(output_dir.glob(".*.tmp")))
+                if failed_name == "LICENSE":
+                    self.assertFalse((output_dir / "release-manifest.json").exists())
+                else:
+                    self.assertTrue((output_dir / "release-manifest.json").exists())
+                verifier = (
+                    Path(__file__).resolve().parents[1]
+                    / ".github/scripts/verify_release_artifacts.py"
+                )
+                environment = os.environ | {
+                    "RELEASE_DIR": str(output_dir),
+                    "SOURCE_SHA": "a" * 40,
+                    "RELEASE_TAG": "peglin-ko-v1.0.0-rc.1",
+                    "GITHUB_OUTPUT": str(self.root / f"verification-output-{failed_name}"),
+                }
+                rejected = subprocess.run(
+                    [os.sys.executable, str(verifier)],
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(0, rejected.returncode)
+                self.assertFalse((self.root / f"verification-output-{failed_name}").exists())
+                with self.assertRaisesRegex(FileExistsError, "already exists"):
+                    build_release_candidate(
+                        self.root / "translation" / "terms",
+                        self.lock_path,
+                        self.root,
+                        "a" * 40,
+                        output_dir,
+                        release_tag="peglin-ko-v1.0.0-rc.1",
+                        plugin_source_inputs=self.plugin_inputs,
+                    )
+                retry = self.root / f"retry-{failed_name}"
+                build_release_candidate(
+                    self.root / "translation" / "terms",
+                    self.lock_path,
+                    self.root,
+                    "a" * 40,
+                    retry,
+                    release_tag="peglin-ko-v1.0.0-rc.1",
+                    plugin_source_inputs=self.plugin_inputs,
+                )
+                self.assertEqual(7, len(list(retry.iterdir())))
+                self.assertTrue((retry / "SHA256SUMS.txt").is_file())
+                accepted = subprocess.run(
+                    [os.sys.executable, str(verifier)],
+                    env=environment | {"RELEASE_DIR": str(retry)},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(0, accepted.returncode, accepted.stderr)
+
+    def test_release_rejects_invalid_status_and_destination_race_before_writing(self) -> None:
+        output_dir = self.root / "release"
+        with self.assertRaisesRegex(ValueError, "Draft translations require"):
+            build_release_candidate(
+                self.root / "translation" / "terms",
+                self.lock_path,
+                self.root,
+                "a" * 40,
+                output_dir,
+                release_tag="peglin-ko-v1.0.0",
+                plugin_source_inputs=self.plugin_inputs,
+            )
+        self.assertFalse(output_dir.exists())
+
+        original_read = release.read_translation_directory
+
+        def race_after_preflight(path: Path) -> dict[str, dict[str, str]]:
+            output_dir.mkdir()
+            (output_dir / "other-owner.txt").write_text("preserve", encoding="utf-8")
+            return original_read(path)
+
+        with patch.object(release, "read_translation_directory", side_effect=race_after_preflight):
+            with self.assertRaises(FileExistsError):
+                build_release_candidate(
+                    self.root / "translation" / "terms",
+                    self.lock_path,
+                    self.root,
+                    "a" * 40,
+                    output_dir,
+                    release_tag="peglin-ko-v1.0.0-rc.1",
+                    plugin_source_inputs=self.plugin_inputs,
+                )
+        self.assertEqual("preserve", (output_dir / "other-owner.txt").read_text(encoding="utf-8"))
 
     def test_locked_overlay_fsync_failure_keeps_existing_destination(self) -> None:
         overlay_path = self.root / "output" / "overlay.json"

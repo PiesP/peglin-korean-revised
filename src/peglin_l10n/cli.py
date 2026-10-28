@@ -154,7 +154,12 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help="administrator-selected version tag recorded in release provenance",
     )
-    release.add_argument("--output-dir", required=True, type=Path)
+    release.add_argument(
+        "--output-dir",
+        required=True,
+        type=Path,
+        help="new release directory; an existing path is never reused",
+    )
     release.add_argument(
         "--footprint-report",
         type=Path,
@@ -380,7 +385,7 @@ def _run_build_release_candidate(args: argparse.Namespace) -> int:
             footprint_report=args.footprint_report,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"Release candidate generation stopped safely: {exc}", file=sys.stderr)
+        print(f"Release candidate generation failed: {exc}", file=sys.stderr)
         return 2
     for label, path in paths.items():
         print(f"{label}: {path}")
