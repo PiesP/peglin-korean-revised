@@ -188,6 +188,24 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
 | `peglin-l10n fingerprint` | Compute one source row fingerprint; `cli.py`, `fingerprints.py` | Locked package environment and local `terms.csv` | `--terms`, `--term`; JSON stdout, no writes; package tests |
 
+`build-release-candidate --output-dir` requires an absent path with an existing
+parent directory. The command creates that directory exclusively, so a repeated
+build or a competing creator cannot overwrite a previous generation. Use a new
+path for each attempt, including a retry after failure. Invalid tag/status is
+rejected before the directory is created. An ordinary write failure or process
+interruption may leave a partial directory; preserve it for diagnosis or remove
+it deliberately after inspection. Do not upload or publish it. The checksum
+list is written last and a generation is usable only after the command succeeds
+and the maintained artifact verifier accepts all seven files. An interruption
+after the checksum write may leave a complete, verifiable set even if the caller
+did not observe success. These are application-level completion rules, not a
+power-loss durability guarantee or a transaction across seven files. Python
+3.11 [`os.replace`](https://docs.python.org/3.11/library/os.html#os.replace)
+protects individual file replacements but cannot atomically
+replace a populated directory. The release workflow supplies a fresh runner
+temporary path and uploads only after the build step succeeds. A stable logical
+output path is not required by the maintained CLI or workflow callers.
+
 For a nonpublishing size review, run `build-release-candidate` from a clean
 full-SHA checkout with `--footprint-report` pointing outside `--output-dir`.
 The optional report reconciles the six install-ZIP members, compressed member

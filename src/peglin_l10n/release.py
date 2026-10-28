@@ -25,6 +25,7 @@ from .source_lock import (
     sha256_file,
     validate_runtime_provenance,
 )
+from .validation import read_translation_directory
 
 REVISION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 
@@ -238,6 +239,10 @@ def build_release_candidate(
             raise ValueError("Footprint report already exists.")
     if output_dir == terms_path or output_dir.is_relative_to(terms_path):
         raise ValueError("Release output must be outside the contribution CSV directory.")
+    if output_dir.exists():
+        raise FileExistsError(
+            f"Release output already exists; choose a new directory: {output_dir}"
+        )
 
     source_lock = read_source_lock(source_lock_path)
     plugin_path = validate_runtime_provenance(
@@ -248,6 +253,12 @@ def build_release_candidate(
     )
     build_id = source_lock["steamBuildId"]
     asset_hash = source_lock["resourcesAssetsSha256"]
+    rows = read_translation_directory(terms_path)
+    expected_status = (
+        "draft" if any(row["Status"] == "draft" for row in rows.values()) else "approved"
+    )
+    validate_release_tag_status(release_tag, expected_status)
+    output_dir.mkdir()
     overlay_path = output_dir / f"peglin-ko-{build_id}-{asset_hash[:8]}.json"
     overlay = create_locked_overlay_patch(terms_path, source_lock, overlay_path)
     prerelease = validate_release_tag_status(release_tag, overlay["status"])
@@ -301,11 +312,6 @@ def build_release_candidate(
     write_bytes_atomically(manifest_path, _json_bytes(manifest))
     artifacts[manifest_path.name] = sha256_file(manifest_path)
 
-    checksums_path = output_dir / "SHA256SUMS.txt"
-    checksums = "".join(f"{digest}  {name}\n" for name, digest in sorted(artifacts.items())).encode(
-        "ascii"
-    )
-    write_bytes_atomically(checksums_path, checksums)
     if footprint_report is not None:
         _assert_report_source(project_root, source_revision)
         _write_footprint_report(
@@ -319,6 +325,11 @@ def build_release_candidate(
             source_lock,
             plugin_source_inputs,
         )
+    checksums_path = output_dir / "SHA256SUMS.txt"
+    checksums = "".join(f"{digest}  {name}\n" for name, digest in sorted(artifacts.items())).encode(
+        "ascii"
+    )
+    write_bytes_atomically(checksums_path, checksums)
     return {
         "overlay": overlay_path,
         "candidate": candidate_path,
