@@ -63,15 +63,18 @@ class ClientCandidateTests(unittest.TestCase):
         self.overlay.write_text(
             json.dumps(
                 {
+                    "schemaVersion": 1,
                     "kind": "peglin-korean-overlay",
                     "game": "Peglin",
                     "language": "ko",
                     "status": "draft",
                     "source": {
+                        "steamAppId": "1296610",
+                        "unityVersion": "2022.3.62f2",
                         "steamBuildId": "fixture-build",
                         "assetSha256": hashlib.sha256(self.asset.read_bytes()).hexdigest(),
                     },
-                    "terms": {"General/Damage": "피해"},
+                    "terms": {"General/Damage": {"translation": "피해"}},
                 },
                 ensure_ascii=False,
             )
@@ -118,6 +121,102 @@ class ClientCandidateTests(unittest.TestCase):
             self.root,
         )
 
+    def _invalid_runtime_overlays(self) -> list[tuple[str, dict[str, object], str]]:
+        original = json.loads(self.overlay.read_bytes())
+        cases = []
+        for value in (None, 999, True, "1"):
+            cases.append(
+                (f"schema {value!r}", {**original, "schemaVersion": value}, "schemaVersion")
+            )
+        cases.append(
+            (
+                "missing schema",
+                {k: v for k, v in original.items() if k != "schemaVersion"},
+                "schemaVersion",
+            )
+        )
+        for field, values in (
+            ("steamAppId", (None, "other", 1296610)),
+            ("unityVersion", (None, "", " \t\n", 2022)),
+        ):
+            for value in values:
+                overlay = {**original, "source": {**original["source"], field: value}}
+                cases.append((f"{field} {value!r}", overlay, field))
+            source = {k: v for k, v in original["source"].items() if k != field}
+            cases.append((f"missing {field}", {**original, "source": source}, field))
+        for label, terms in (
+            ("scalar term", {"General/Damage": "피해"}),
+            ("null term", {"General/Damage": None}),
+            ("array term", {"General/Damage": []}),
+            ("missing translation", {"General/Damage": {}}),
+            ("null translation", {"General/Damage": {"translation": None}}),
+            ("numeric translation", {"General/Damage": {"translation": 12}}),
+            ("empty translation", {"General/Damage": {"translation": ""}}),
+            ("blank translation", {"General/Damage": {"translation": " \t\n"}}),
+            ("empty key", {"": {"translation": "피해"}}),
+            ("blank key", {" \t": {"translation": "피해"}}),
+        ):
+            cases.append((label, {**original, "terms": terms}, "term"))
+        return cases
+
+    def test_runtime_contract_rejects_initial_input_before_build_or_output_replacement(
+        self,
+    ) -> None:
+        original = self.overlay.read_bytes()
+        cases = self._invalid_runtime_overlays()
+        prior = self._prebuilt(self.root / "output")
+        prior_bytes = prior.read_bytes()
+        for label, overlay, reason in cases:
+            for route in ("prebuilt", "installed"):
+                with self.subTest(case=label, route=route):
+                    self._write_overlay(overlay)
+                    with patch.object(candidate, "_run_dotnet") as compile_plugin:
+                        with self.assertRaisesRegex(ValueError, reason):
+                            if route == "prebuilt":
+                                self._prebuilt(prior.parent)
+                            else:
+                                candidate.create_client_candidate(
+                                    self.overlay,
+                                    self.game,
+                                    prior.parent,
+                                    self.project,
+                                    project_root=self.root,
+                                )
+                        compile_plugin.assert_not_called()
+                    self.assertEqual(prior_bytes, prior.read_bytes())
+                    self.assertEqual([prior], list(prior.parent.iterdir()))
+        self.overlay.write_bytes(original)
+
+    def test_runtime_contract_revalidates_build_interval_changes_before_replacement(self) -> None:
+        original = self.overlay.read_bytes()
+        cases = self._invalid_runtime_overlays()
+        prior = self._build()
+        prior_bytes = prior.read_bytes()
+        for label, overlay, reason in cases:
+            with self.subTest(case=label):
+                self.overlay.write_bytes(original)
+                self.commands.clear()
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.assertEqual(self.project.parent, project_dir)
+                    self.commands.append(command[1])
+                    if command[1] == "build":
+                        self._write_overlay(overlay)
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    with self.assertRaisesRegex(ValueError, reason):
+                        candidate.create_client_candidate(
+                            self.overlay,
+                            self.game,
+                            prior.parent,
+                            self.project,
+                            project_root=self.root,
+                        )
+                self.assertEqual(["restore", "build"], self.commands)
+                self.assertEqual(prior_bytes, prior.read_bytes())
+                self.assertEqual([prior], list(prior.parent.iterdir()))
+        self.overlay.write_bytes(original)
+
     def test_prebuilt_packages_the_validated_overlay_snapshot_after_path_replacement(self) -> None:
         original_bytes = self.overlay.read_bytes()
         original = json.loads(original_bytes)
@@ -131,7 +230,10 @@ class ClientCandidateTests(unittest.TestCase):
                     **original,
                     "status": "approved",
                     "source": {**original["source"], "steamBuildId": "new-build"},
-                    "terms": {"Other/Term": "다른 문구", "Extra/Term": "추가 문구"},
+                    "terms": {
+                        "Other/Term": {"translation": "다른 문구"},
+                        "Extra/Term": {"translation": "추가 문구"},
+                    },
                 },
             ),
             ("wrong language", {**original, "language": "en"}),
@@ -458,7 +560,7 @@ class ClientCandidateTests(unittest.TestCase):
                     replacement["source"]["assetSha256"] = "b" * 64
                 if "steamBuildId" in fields:
                     replacement["source"]["steamBuildId"] = "different-build"
-                replacement["terms"]["General/Damage"] = "새 피해"
+                replacement["terms"]["General/Damage"] = {"translation": "새 피해"}
                 replacement_bytes = (json.dumps(replacement, ensure_ascii=False) + "\n").encode(
                     "utf-8"
                 )
@@ -507,8 +609,8 @@ class ClientCandidateTests(unittest.TestCase):
             ):
                 changed = json.loads(json.dumps(original))
                 if edit_terms:
-                    changed["terms"]["General/Damage"] = "새 피해"
-                    changed["terms"]["General/Other"] = "추가 문구"
+                    changed["terms"]["General/Damage"] = {"translation": "새 피해"}
+                    changed["terms"]["General/Other"] = {"translation": "추가 문구"}
                 final_bytes = (
                     (json.dumps(changed, ensure_ascii=escape_korean, indent=2) + "\n")
                     .replace("\n", newline)

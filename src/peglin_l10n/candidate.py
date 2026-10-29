@@ -204,6 +204,8 @@ def _read_overlay(path: Path) -> tuple[dict[str, Any], bytes]:
         raise ValueError("Overlay must be a Peglin Korean JSON overlay.")
     if overlay.get("game") != "Peglin" or overlay.get("language") != "ko":
         raise ValueError("Overlay must target Peglin and Korean (ko).")
+    if type(overlay.get("schemaVersion")) is not int or overlay["schemaVersion"] != 1:
+        raise ValueError("Overlay schemaVersion must be the supported integer 1.")
 
     source = overlay.get("source")
     terms = overlay.get("terms")
@@ -215,8 +217,19 @@ def _read_overlay(path: Path) -> tuple[dict[str, Any], bytes]:
         raise ValueError("Overlay source steamBuildId is invalid.")
     if not isinstance(asset_sha256, str) or _SHA256_PATTERN.fullmatch(asset_sha256) is None:
         raise ValueError("Overlay source assetSha256 is invalid.")
+    if source.get("steamAppId") != "1296610":
+        raise ValueError("Overlay source steamAppId must be the string 1296610.")
+    unity_version = source.get("unityVersion")
+    if not isinstance(unity_version, str) or not unity_version.strip():
+        raise ValueError("Overlay source unityVersion must be a nonblank string.")
     if overlay.get("status") not in {"draft", "approved"}:
         raise ValueError("Overlay status must be draft or approved.")
+    for key, term in terms.items():
+        if not key.strip() or not isinstance(term, dict):
+            raise ValueError("Overlay term keys must be nonblank and term values must be objects.")
+        translation = term.get("translation")
+        if not isinstance(translation, str) or not translation.strip():
+            raise ValueError("Overlay term translation must be a nonblank string.")
     return overlay, overlay_bytes
 
 

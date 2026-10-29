@@ -188,6 +188,28 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
 | `peglin-l10n fingerprint` | Compute one source row fingerprint; `cli.py`, `fingerprints.py` | Locked package environment and local `terms.csv` | `--terms`, `--term`; JSON stdout, no writes; package tests |
 
+The candidate packaging boundary validates the captured overlay bytes against
+the supported runtime contract before creating or replacing an install ZIP.
+Both routes require integer `schemaVersion: 1`, the Peglin/ko overlay identity,
+`draft` or `approved` status, string Steam app ID `1296610`, the existing safe
+build ID and lowercase SHA-256, and a nonblank string Unity version. Terms must
+form a nonempty object with nonblank keys and object values containing nonblank
+string `translation` fields. Whitespace-only values are rejected; accepted
+strings, optional metadata, formatting and Korean bytes are preserved verbatim,
+with the manifest hashing that same byte snapshot.
+
+The installed-game route validates before compilation and again after it,
+retaining source-identity and time-separated game-file checks. Invalid input
+cannot start compilation or replace a previous ZIP; consumer-invalid edits
+during compilation cannot replace it either. The producer emits this shape,
+the C# reader independently fails closed, and the release verifier continues
+to own archive/source/hash consistency. Extending the existing Python loader
+closes the incomplete packaging check without a dependency or generated-schema
+layer; keeping the old split would knowingly accept unusable candidates.
+Python fixture packaging and public-stub C# builds do not establish game
+execution. Runtime code, the retained DLL and supported-game identity remain
+separate qualification boundaries.
+
 `build-release-candidate --output-dir` requires an absent path with an existing
 parent directory. The command creates that directory exclusively, so a repeated
 build or a competing creator cannot overwrite a previous generation. Use a new
