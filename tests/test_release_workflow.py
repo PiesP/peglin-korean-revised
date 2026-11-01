@@ -47,6 +47,39 @@ def command(name: str) -> list[str]:
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
+    def test_patched_python_and_setup_uv_are_selected_in_all_jobs(self) -> None:
+        verify = (
+            WORKFLOW.read_text().split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]
+        )
+        build = WORKFLOW.read_text().split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+        validate = VALIDATE_WORKFLOW.read_text()
+        for job in (verify, build, validate):
+            with self.subTest(job=job.splitlines()[0]):
+                self.assertIn("check-latest: true", job)
+                self.assertLess(job.index("Set up Python"), job.index("Verify selected Python"))
+                self.assertIn("id: setup-python", job)
+                self.assertIn(
+                    'python .github/scripts/verify_python.py "$PYTHON_VERSION" --selected-executable "${{ steps.setup-python.outputs.python-path }}"',
+                    job,
+                )
+        for job in (build, validate):
+            with self.subTest(job=job.splitlines()[0]):
+                self.assertIn(
+                    "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3",
+                    job,
+                )
+                self.assertIn(
+                    'uv sync --locked --python "${{ steps.setup-python.outputs.python-path }}"', job
+                )
+                self.assertIn(
+                    'uv run --locked python .github/scripts/verify_python.py "$PYTHON_VERSION" --selected-executable "${{ steps.setup-python.outputs.python-path }}"',
+                    job,
+                )
+                self.assertLess(job.index("Verify selected Python"), job.index("Set up uv"))
+                self.assertLess(
+                    job.index("Install locked dependencies"), job.index("Verify uv project Python")
+                )
+
     def test_manual_verification_guard_runs_before_checkout(self) -> None:
         workflow = WORKFLOW.read_text()
         verification = workflow.split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]

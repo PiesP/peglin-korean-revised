@@ -141,6 +141,8 @@ Python is the primary language for handwritten repository automation. The
 `[tool.maintenance]`, confirm it with `uv --version`, then run
 `uv sync --locked --python 3.11`. C# under `plugin/` is product
 code; workflow YAML, lockfiles, and generated release files are not scripts.
+The hosted Ubuntu workflows select the latest available 3.11 patch, reject
+CPython older than 3.11.18, and pass that exact setup-python interpreter to uv.
 The default install covers contribution checks and public release assembly.
 Commands that read the installed Peglin game need UnityPy from the `extract`
 extra: run `uv sync --locked --python 3.11 --extra extract`, then invoke them as
