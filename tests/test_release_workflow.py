@@ -80,6 +80,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     job.index("Install locked dependencies"), job.index("Verify uv project Python")
                 )
 
+    @unittest.skipIf(os.name == "nt", "The Actions Bash contract is exercised on Linux.")
     def test_manual_verification_guard_runs_before_checkout(self) -> None:
         workflow = WORKFLOW.read_text()
         verification = workflow.split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]

@@ -46,6 +46,7 @@ class ToolchainSelectionTests(unittest.TestCase):
                 self.assertIn("peglin-l10n lint-overrides", lane)
         self.assertIn("verify_python.py 3.11 --selected-executable", compatibility)
 
+    @unittest.skipIf(os.name == "nt", "The Actions Bash contract is exercised on Linux.")
     def test_required_validate_rejects_non_successful_python_lane(self) -> None:
         workflow = VALIDATE.read_text(encoding="utf-8")
         aggregate = workflow.split("\n  validate:\n", 1)[1]
