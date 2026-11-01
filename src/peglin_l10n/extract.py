@@ -269,10 +269,16 @@ def _stat_signature(stat: os.stat_result) -> tuple[int, int, int, int, int]:
 
 def _read_asset_snapshot(asset_path: Path) -> tuple[bytes, str, tuple[int, int, int, int, int]]:
     try:
-        path_before = _stat_signature(asset_path.stat())
+        path_before_stat = asset_path.stat()
+        path_before = _stat_signature(path_before_stat)
         with asset_path.open("rb") as stream:
-            descriptor_before = _stat_signature(os.fstat(stream.fileno()))
-            if descriptor_before != path_before:
+            descriptor_before_stat = os.fstat(stream.fileno())
+            descriptor_before = _stat_signature(descriptor_before_stat)
+            # Windows path stat and fstat can disagree on ctime for the same file.
+            if (
+                not os.path.samestat(path_before_stat, descriptor_before_stat)
+                or descriptor_before[2:4] != path_before[2:4]
+            ):
                 raise ExtractionError("resources.assets was replaced before it could be read.")
             data = stream.read()
             descriptor_after = _stat_signature(os.fstat(stream.fileno()))
@@ -282,7 +288,7 @@ def _read_asset_snapshot(asset_path: Path) -> tuple[bytes, str, tuple[int, int, 
 
     if not data or len(data) != path_before[2]:
         raise ExtractionError("resources.assets changed or was truncated while being read.")
-    if descriptor_after != path_before or path_after_read != path_before:
+    if descriptor_after != descriptor_before or path_after_read != path_before:
         raise ExtractionError("resources.assets changed while being read.")
     return data, hashlib.sha256(data).hexdigest(), path_before
 
@@ -308,7 +314,7 @@ def load_installation(game_root: Path) -> InstallationData:
         import UnityPy
     except ImportError as exc:
         raise ExtractionError(
-            "UnityPy is missing; run `uv sync --locked --python 3.11 --extra extract` "
+            "UnityPy is missing; run `uv sync --locked --python 3.14 --extra extract` "
             "and use `uv run --locked --extra extract peglin-l10n ...` for game commands."
         ) from exc
 

@@ -701,8 +701,9 @@ class ReleasePackagingTests(unittest.TestCase):
         first_files = {path.name: path.read_bytes() for path in first.iterdir()}
         second_files = {path.name: path.read_bytes() for path in second.iterdir()}
         self.assertEqual(first_files, second_files)
-        for path in first.iterdir():
-            self.assertEqual(0o644, path.stat().st_mode & 0o777, path.name)
+        if os.name != "nt":
+            for path in first.iterdir():
+                self.assertEqual(0o644, path.stat().st_mode & 0o777, path.name)
         overlay_name = next(
             name
             for name in first_files

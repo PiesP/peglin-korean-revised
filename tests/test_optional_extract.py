@@ -54,7 +54,7 @@ class OptionalExtractTests(unittest.TestCase):
                             result = main([*command, "--game-root", str(game_root)])
                     self.assertEqual(2, result)
                     self.assertIn(
-                        "uv sync --locked --python 3.11 --extra extract", stderr.getvalue()
+                        "uv sync --locked --python 3.14 --extra extract", stderr.getvalue()
                     )
                     self.assertIn(
                         "uv run --locked --extra extract peglin-l10n ...", stderr.getvalue()

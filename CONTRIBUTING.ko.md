@@ -137,15 +137,20 @@ git push origin peglin-ko-v1.0.0-rc.1
 Python is the primary language for handwritten repository automation. The
 `peglin-l10n` entry point is declared in `pyproject.toml`; `uv.lock` and
 `[tool.maintenance]` select dependencies and runtimes. Use the locked Python
-3.11 environment for local package commands. Install the uv version selected by
+3.14 maintenance environment for local package commands. Install the uv version selected by
 `[tool.maintenance]`, confirm it with `uv --version`, then run
-`uv sync --locked --python 3.11`. C# under `plugin/` is product
+`uv sync --locked --python 3.14`. C# under `plugin/` is product
 code; workflow YAML, lockfiles, and generated release files are not scripts.
-The hosted Ubuntu workflows select the latest available 3.11 patch, reject
-CPython older than 3.11.18, and pass that exact setup-python interpreter to uv.
+The hosted Ubuntu maintenance and release workflows select the latest available
+3.14 patch, reject CPython older than 3.14.10, and pass that exact setup-python
+interpreter to uv. The validation workflow also runs package tests, compilation,
+and translation lint on the latest available 3.11 patch, rejecting versions older
+than 3.11.18. The package still supports `>=3.11`, and Ruff still targets `py311`.
+The required `validate` check succeeds only when both Python lanes succeed;
+release-source verification retains the `validate` and `csharp-build` check names.
 The default install covers contribution checks and public release assembly.
 Commands that read the installed Peglin game need UnityPy from the `extract`
-extra: run `uv sync --locked --python 3.11 --extra extract`, then invoke them as
+extra: run `uv sync --locked --python 3.14 --extra extract`, then invoke them as
 `uv run --locked --extra extract peglin-l10n <command> ...`. The `--extra extract`
 on `uv run` keeps automatic synchronization from removing UnityPy. The same
 locked `uv.lock` resolves both environments; keep the complete graph in security
@@ -181,10 +186,10 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 
 | Public command | Purpose and implementation | Runtime and prerequisites | Inputs, outputs, side effects, tests |
 | --- | --- | --- | --- |
-| `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.11, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
+| `peglin-l10n extract` | Read the installed I2 table; `cli.py`, `extract.py` | Python 3.14 maintenance runtime, `extract` extra, supported local Peglin installation | `--game-root`, optional `--output-dir`; writes an immutable `terms.csv`/`source.json` snapshot; package tests |
 | `peglin-l10n build-patch` | Validate translations against a local game snapshot; `cli.py`, `patching.py`, `validation.py` | Same local game and `extract` extra | Game, translations, glossary, snapshot/output paths; writes snapshot and overlay JSON; package tests |
 | `peglin-l10n build-candidate` | Build the plugin and install ZIP from a local game; `cli.py`, `candidate.py` | Same local game, `extract` extra, SDK from `global.json`, locked NuGet inputs | Game, plugin, source and output paths; invokes `dotnet`, writes snapshot, overlay and ZIP; package tests |
-| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.11, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums. Optional `--footprint-report` writes a separate JSON report from a clean full-SHA checkout; `test_public_release.py` |
+| `peglin-l10n build-release-candidate` | Build source-locked public files without a local game; `cli.py`, `release.py`, `candidate.py` | Python 3.14 maintenance runtime, default locked environment on Linux, tracked plugin DLL and source lock | Full source revision, reserved tag, translations, lock and output directory; writes overlay, ZIP, notices, manifest, notes and checksums. Optional `--footprint-report` writes a separate JSON report from a clean full-SHA checkout; `test_public_release.py` |
 | `peglin-l10n lint-overrides` | Lint public translation CSVs; `cli.py`, `validation.py` | Locked package environment | Translation directory; JSON summary and diagnostics on stdout, no writes; package tests and `validate.yml` |
 | `peglin-l10n validate` | Compare source snapshot and translations; `cli.py`, `validation.py` | Locked package environment and local snapshot | `--terms`, translations, glossary, optional source manifest; JSON summary and diagnostics, no writes; package tests |
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |

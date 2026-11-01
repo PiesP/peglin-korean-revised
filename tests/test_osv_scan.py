@@ -71,6 +71,7 @@ class OsvScanTests(unittest.TestCase):
     def report(self) -> Path:
         return self.runner_temp / "osv-results/osv-results.sarif"
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_clean_scan_preserves_docker_contract_and_output(self) -> None:
         result = self.run_scan()
         self.assertEqual(0, result.returncode, result.stderr)
@@ -96,24 +97,28 @@ class OsvScanTests(unittest.TestCase):
             json.loads(self.calls.read_text()),
         )
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_findings_emit_warning_and_allow_upload(self) -> None:
         result = self.run_scan(status=1)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("::warning::Known vulnerable dependencies", result.stdout)
         self.assertEqual("report=true\n", self.output.read_text())
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_operational_error_preserves_status_and_allows_report_upload(self) -> None:
         result = self.run_scan(status=23)
         self.assertEqual(23, result.returncode)
         self.assertIn("failed before completing the scan (exit 23)", result.stderr)
         self.assertEqual("report=true\n", self.output.read_text())
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command uses POSIX signals.")
     def test_signaled_scanner_is_an_operational_failure(self) -> None:
         result = self.run_scan(status=-15)
         self.assertEqual(143, result.returncode)
         self.assertIn("failed before completing the scan (exit 143)", result.stderr)
         self.assertEqual("report=true\n", self.output.read_text())
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_missing_and_empty_reports_fail_without_output(self) -> None:
         for kind in ("missing", "empty"):
             with self.subTest(kind=kind):
@@ -122,6 +127,7 @@ class OsvScanTests(unittest.TestCase):
                 self.assertIn("did not produce a SARIF report", result.stderr)
                 self.assertFalse(self.output.exists())
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_stale_report_is_removed_before_scan(self) -> None:
         self.report().parent.mkdir()
         self.report().write_text("stale")
@@ -137,6 +143,7 @@ class OsvScanTests(unittest.TestCase):
         self.assertIn("Could not start OSV-Scanner", result.stderr)
         self.assertFalse(self.output.exists())
 
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_output_write_and_cleanup_failures_are_detected(self) -> None:
         self.output.mkdir()
         result = self.run_scan()
