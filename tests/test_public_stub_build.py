@@ -105,6 +105,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("Missing public reference lockfile", result.stderr)
         self.assertFalse(self.calls.exists())
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_failed_locked_stub_restore_stops_before_build(self) -> None:
         self.locks()
         result = self.run_stage("stubs", fail_command="restore")
@@ -112,6 +113,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertEqual(["--version", "restore"], [call[0] for call in self.recorded_calls()])
         self.assertFalse(self.reference_dir.exists())
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_stubs_preserve_command_order_and_publish_private_reference_directory(self) -> None:
         self.locks()
         result = self.run_stage("stubs")
@@ -134,6 +136,7 @@ class PublicStubBuildTests(unittest.TestCase):
             {path.name for path in self.reference_dir.iterdir()},
         )
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_failed_plugin_build_cleans_targets_and_preserves_status(self) -> None:
         self.plugin_inputs()
         result = self.run_stage("plugin", fail_command="build")
@@ -146,6 +149,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("-p:ContinuousIntegrationBuild=true", calls[2])
         self.assertEqual([], list(self.runner_temp.iterdir()))
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_successful_plugin_build_also_cleans_targets(self) -> None:
         self.plugin_inputs()
         result = self.run_stage("plugin")
@@ -166,6 +170,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("Unknown build stage", result.stderr)
         self.assertFalse(self.calls.exists())
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_unusable_target_directory_stops_after_restore(self) -> None:
         self.plugin_inputs()
         self.runner_temp.rmdir()
@@ -175,6 +180,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("Could not create public-stub targets", result.stderr)
         self.assertEqual(["--version", "restore"], [call[0] for call in self.recorded_calls()])
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_wrong_sdk_stops_before_restore_in_each_stage(self) -> None:
         self.locks()
         self.plugin_inputs()
@@ -187,6 +193,7 @@ class PublicStubBuildTests(unittest.TestCase):
                 self.assertIn(f"Expected .NET SDK {expected}", result.stderr)
                 self.assertEqual([["--version"]], self.recorded_calls())
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command is a POSIX shebang executable.")
     def test_failed_sdk_query_preserves_return_code(self) -> None:
         self.locks()
         result = self.run_stage("stubs", fail_command="--version")
@@ -215,6 +222,7 @@ class PublicStubBuildTests(unittest.TestCase):
         self.assertIn("Expected a reference assembly directory", result.stderr)
         self.assertEqual(before_mode, stat.S_IMODE(self.root.stat().st_mode))
 
+    @unittest.skipIf(os.name == "nt", "The fake dotnet command and signal cleanup require POSIX.")
     def test_termination_reaps_owned_dotnet_child_and_removes_targets(self) -> None:
         self.plugin_inputs()
         environment = os.environ.copy()

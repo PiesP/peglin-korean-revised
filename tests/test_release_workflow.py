@@ -253,6 +253,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotIn("always()", create)
         self.assertNotIn("        if:", create)
 
+    @unittest.skipIf(os.name == "nt", "The Linux release helpers use Bash and a POSIX gh fixture.")
     def test_real_workflow_helpers_stop_on_bad_data_and_recheck_tags(self) -> None:
         for mode in (
             "valid-rc",

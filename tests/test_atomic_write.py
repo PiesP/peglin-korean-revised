@@ -21,7 +21,8 @@ class AtomicWriteTests(unittest.TestCase):
     def test_writes_bytes_with_fixed_permissions_and_creates_parent(self) -> None:
         atomic_write.write_bytes_atomically(self.path, b"new\r\nbytes")
         self.assertEqual(b"new\r\nbytes", self.path.read_bytes())
-        self.assertEqual(0o644, self.path.stat().st_mode & 0o777)
+        if os.name != "nt":
+            self.assertEqual(0o644, self.path.stat().st_mode & 0o777)
         self.assert_no_temporary_files()
 
     def test_partial_write_or_flush_failure_preserves_destination(self) -> None:
