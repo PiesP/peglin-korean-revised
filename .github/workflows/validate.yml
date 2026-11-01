@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  python-maintenance:
+    name: Python maintenance
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -109,3 +110,19 @@ jobs:
         run: uv run --locked python -m unittest discover -s tests -v
       - name: Validate override metadata
         run: uv run --locked peglin-l10n lint-overrides
+
+  validate:
+    name: validate
+    needs: [python-maintenance, python-compat]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require both Python lanes
+        env:
+          MAINTENANCE_RESULT: ${{ needs.python-maintenance.result }}
+          COMPAT_RESULT: ${{ needs.python-compat.result }}
+        run: |
+          set -euo pipefail
+          printf 'maintenance=%s compatibility=%s\n' "${MAINTENANCE_RESULT:-missing}" "${COMPAT_RESULT:-missing}"
+          [[ "${MAINTENANCE_RESULT:-}" == success && "${COMPAT_RESULT:-}" == success ]]

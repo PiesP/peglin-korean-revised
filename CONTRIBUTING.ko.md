@@ -146,6 +146,8 @@ The hosted Ubuntu maintenance and release workflows select the latest available
 interpreter to uv. The validation workflow also runs package tests, compilation,
 and translation lint on the latest available 3.11 patch, rejecting versions older
 than 3.11.18. The package still supports `>=3.11`, and Ruff still targets `py311`.
+The required `validate` check succeeds only when both Python lanes succeed;
+release-source verification retains the `validate` and `csharp-build` check names.
 The default install covers contribution checks and public release assembly.
 Commands that read the installed Peglin game need UnityPy from the `extract`
 extra: run `uv sync --locked --python 3.14 --extra extract`, then invoke them as
