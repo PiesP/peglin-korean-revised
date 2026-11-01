@@ -19,10 +19,16 @@ SPEC.loader.exec_module(verify_python)
 class PythonInterpreterTests(unittest.TestCase):
     def test_accepts_patched_gil_cpython_on_selected_executable(self) -> None:
         verify_python.verify_interpreter(
-            "3.11", "cpython", (3, 11, 18), False, sys.executable, sys.executable
+            "3.11", "cpython", (3, 11, 18), False, False, sys.executable, sys.executable
         )
         verify_python.verify_interpreter(
-            "3.11", "cpython", (3, 11, 19), False, sys.executable, None
+            "3.11", "cpython", (3, 11, 19), False, False, sys.executable, None
+        )
+        verify_python.verify_interpreter(
+            "3.14", "cpython", (3, 14, 10), False, False, sys.executable, sys.executable
+        )
+        verify_python.verify_interpreter(
+            "3.14", "cpython", (3, 14, 11), False, False, sys.executable, None
         )
 
     def test_rejects_old_patch_other_minor_and_other_implementation(self) -> None:
@@ -30,27 +36,34 @@ class PythonInterpreterTests(unittest.TestCase):
             ("3.11", "cpython", (3, 11, 17)),
             ("3.11", "cpython", (3, 12, 0)),
             ("3.11", "pypy", (3, 11, 18)),
-            ("3.14", "cpython", (3, 14, 10)),
+            ("3.14", "cpython", (3, 14, 9)),
+            ("3.14", "cpython", (3, 15, 0)),
+            ("3.14", "pypy", (3, 14, 10)),
+            ("3.12", "cpython", (3, 12, 16)),
         ):
             with self.subTest(
                 expected_minor=expected_minor, implementation=implementation, version=version
             ):
                 with self.assertRaises(ValueError):
                     verify_python.verify_interpreter(
-                        expected_minor, implementation, version, False, sys.executable, None
+                        expected_minor, implementation, version, False, False, sys.executable, None
                     )
 
-    def test_rejects_disabled_gil_and_different_project_interpreter(self) -> None:
+    def test_rejects_disabled_gil_jit_and_different_project_interpreter(self) -> None:
         with self.assertRaisesRegex(ValueError, "GIL-enabled"):
             verify_python.verify_interpreter(
-                "3.11", "cpython", (3, 11, 18), True, sys.executable, None
+                "3.11", "cpython", (3, 11, 18), True, False, sys.executable, None
+            )
+        with self.assertRaisesRegex(ValueError, "JIT disabled"):
+            verify_python.verify_interpreter(
+                "3.14", "cpython", (3, 14, 10), False, True, sys.executable, None
             )
         with tempfile.TemporaryDirectory() as directory:
             other = Path(directory) / "python"
             other.touch()
             with self.assertRaisesRegex(ValueError, "differs"):
                 verify_python.verify_interpreter(
-                    "3.11", "cpython", (3, 11, 18), False, sys.executable, str(other)
+                    "3.11", "cpython", (3, 11, 18), False, False, sys.executable, str(other)
                 )
 
 

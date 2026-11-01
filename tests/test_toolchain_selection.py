@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".github" / "scripts" / "resolve_toolchains.py"
+VALIDATE = ROOT / ".github" / "workflows" / "validate.yml"
 SPEC = importlib.util.spec_from_file_location("resolve_toolchains", SCRIPT)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load maintenance toolchain resolver.")
@@ -17,10 +18,29 @@ SPEC.loader.exec_module(toolchains)
 
 
 class ToolchainSelectionTests(unittest.TestCase):
-    def test_repository_selects_patched_uv_with_python_311(self) -> None:
+    def test_repository_selects_patched_uv_with_python_314(self) -> None:
         python, uv = toolchains.resolve_toolchains(ROOT / "pyproject.toml")
-        self.assertEqual("3.11", python)
+        self.assertEqual("3.14", python)
         self.assertGreaterEqual(tuple(map(int, uv.split("."))), (0, 13, 4))
+
+    def test_validation_keeps_maintenance_and_patched_311_lanes(self) -> None:
+        workflow = VALIDATE.read_text(encoding="utf-8")
+        maintenance = workflow.split("  validate:\n", 1)[1].split("\n  python-compat:\n", 1)[0]
+        compatibility = workflow.split("\n  python-compat:\n", 1)[1]
+        self.assertIn("python-version: ${{ steps.toolchains.outputs.python }}", maintenance)
+        self.assertIn("python-version: '3.11'", compatibility)
+        for lane in (maintenance, compatibility):
+            with self.subTest(lane=lane.splitlines()[0]):
+                self.assertIn("check-latest: true", lane)
+                self.assertIn(".github/scripts/verify_python.py", lane)
+                self.assertIn(
+                    'uv sync --locked --python "${{ steps.setup-python.outputs.python-path }}"',
+                    lane,
+                )
+                self.assertIn("-m compileall -q src/peglin_l10n", lane)
+                self.assertIn("-m unittest discover -s tests -v", lane)
+                self.assertIn("peglin-l10n lint-overrides", lane)
+        self.assertIn("verify_python.py 3.11 --selected-executable", compatibility)
 
     def test_reads_changed_versions_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

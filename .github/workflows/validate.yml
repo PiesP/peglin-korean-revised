@@ -65,3 +65,47 @@ jobs:
         run: uv run --locked python -m unittest discover -s tests -v
       - name: Validate override metadata
         run: uv run --locked peglin-l10n lint-overrides
+
+  python-compat:
+    name: Python 3.11 compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Resolve maintenance toolchains
+        id: toolchains
+        run: python3 .github/scripts/resolve_toolchains.py
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          check-latest: true
+      - name: Verify selected Python
+        run: python .github/scripts/verify_python.py 3.11 --selected-executable "${{ steps.setup-python.outputs.python-path }}"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ steps.toolchains.outputs.uv }}
+          enable-cache: false
+      - name: Verify uv version
+        env:
+          UV_VERSION: ${{ steps.toolchains.outputs.uv }}
+        run: |
+          actual="$(uv --version)"
+          echo "$actual"
+          actual_version="${actual#uv }"
+          test "${actual_version%% *}" = "$UV_VERSION"
+      - name: Install locked dependencies
+        run: uv sync --locked --python "${{ steps.setup-python.outputs.python-path }}"
+      - name: Verify uv project Python
+        run: uv run --locked python .github/scripts/verify_python.py 3.11 --selected-executable "${{ steps.setup-python.outputs.python-path }}"
+      - name: Compile package
+        run: uv run --locked python -m compileall -q src/peglin_l10n
+      - name: Run package tests
+        run: uv run --locked python -m unittest discover -s tests -v
+      - name: Validate override metadata
+        run: uv run --locked peglin-l10n lint-overrides
