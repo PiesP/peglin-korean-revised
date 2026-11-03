@@ -55,7 +55,14 @@ class ClientCandidateTests(unittest.TestCase):
         self.assembly.write_bytes(b"fixture managed assembly\x80")
         self.project = self.root / "plugin" / "PeglinKoreanRevised.csproj"
         self.project.parent.mkdir()
-        self.project.write_text("<Project />\n", encoding="utf-8")
+        self.project.write_text(
+            "<Project><PropertyGroup><Version>0.1.2</Version></PropertyGroup></Project>\n",
+            encoding="utf-8",
+        )
+        (self.project.parent / "Plugin.cs").write_text(
+            '[BepInPlugin("id", "name", "0.1.2")] public class Plugin {}\n',
+            encoding="utf-8",
+        )
         (self.project.parent / "NuGet.Config").write_text("<configuration />\n", encoding="utf-8")
         (self.project.parent / "packages.lock.json").write_text("{}\n", encoding="utf-8")
         self.plugin = self.project.parent / "bin" / "Release" / "net46" / "PeglinKoreanRevised.dll"
@@ -119,6 +126,7 @@ class ClientCandidateTests(unittest.TestCase):
             self.plugin,
             hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
             self.root,
+            "0.1.2",
         )
 
     def _invalid_runtime_overlays(self) -> list[tuple[str, dict[str, object], str]]:
@@ -408,6 +416,89 @@ class ClientCandidateTests(unittest.TestCase):
         self.assertEqual(first_bytes, self._build().read_bytes())
         self.assertEqual(["restore", "build", "restore", "build"], self.commands)
 
+    def test_selected_project_version_is_packaged(self) -> None:
+        selected_dir = self.root / "selected-plugin"
+        selected_dir.mkdir()
+        for filename in ("NuGet.Config", "packages.lock.json"):
+            (selected_dir / filename).write_bytes((self.project.parent / filename).read_bytes())
+        self.project = selected_dir / "Custom.csproj"
+        self.project.write_text(
+            "<Project><PropertyGroup><Version>0.1.3</Version></PropertyGroup></Project>\n",
+            encoding="utf-8",
+        )
+        (selected_dir / "Plugin.cs").write_text(
+            '[BepInPlugin("id", "name", "0.1.3")] public class Plugin {}\n',
+            encoding="utf-8",
+        )
+        self.plugin = selected_dir / "bin" / "Release" / "net46" / "PeglinKoreanRevised.dll"
+
+        archive_path = self._build()
+        with zipfile.ZipFile(archive_path) as archive:
+            manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+        self.assertEqual("0.1.3", manifest["runtime"]["pluginVersion"])
+        self.assertEqual(["restore", "build"], self.commands)
+
+    def test_default_project_version_stays_unchanged(self) -> None:
+        with zipfile.ZipFile(self._build()) as archive:
+            manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+        self.assertEqual("0.1.2", manifest["runtime"]["pluginVersion"])
+
+    def test_mismatched_plugin_declarations_preserve_existing_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        (self.project.parent / "Plugin.cs").write_text(
+            '[BepInPlugin("id", "name", "0.1.3")] public class Plugin {}\n',
+            encoding="utf-8",
+        )
+        self.commands.clear()
+        with self.assertRaisesRegex(ValueError, "does not match the project Version"):
+            self._build()
+        self.assertEqual([], self.commands)
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
+
+    def test_unsupported_source_selection_preserves_existing_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        self.project.write_text(
+            "<Project><PropertyGroup><Version>0.1.2</Version></PropertyGroup>"
+            '<ItemGroup><Compile Include="../OtherPlugin.cs" /></ItemGroup></Project>\n',
+            encoding="utf-8",
+        )
+        self.commands.clear()
+        with self.assertRaisesRegex(ValueError, "source selection is unsupported"):
+            self._build()
+        self.assertEqual([], self.commands)
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
+
+    def test_plugin_version_change_during_build_preserves_existing_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        self.commands.clear()
+
+        def fake_dotnet(command: list[str], project_dir: Path) -> None:
+            self.commands.append(command[1])
+            if command[1] == "build":
+                self.project.write_text(
+                    "<Project><PropertyGroup><Version>0.1.3</Version></PropertyGroup></Project>\n",
+                    encoding="utf-8",
+                )
+                (project_dir / "Plugin.cs").write_text(
+                    '[BepInPlugin("id", "name", "0.1.3")] public class Plugin {}\n',
+                    encoding="utf-8",
+                )
+
+        with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+            with self.assertRaisesRegex(ValueError, "version changed while building"):
+                candidate.create_client_candidate(
+                    self.overlay,
+                    self.game,
+                    prior_path.parent,
+                    self.project,
+                    project_root=self.root,
+                )
+        self.assertEqual(["restore", "build"], self.commands)
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
+
     def test_invalid_source_fields_reject_before_build_without_replacing_output(self) -> None:
         original = json.loads(self.overlay.read_text(encoding="utf-8"))
         output = self.root / "output"
@@ -455,6 +546,7 @@ class ClientCandidateTests(unittest.TestCase):
                     self.plugin,
                     hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
                     self.root,
+                    "0.1.2",
                 )
                 self.assertTrue(archive.is_file())
                 self.assertIn(build_id, archive.name)
@@ -482,9 +574,24 @@ class ClientCandidateTests(unittest.TestCase):
                         self.plugin,
                         hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
                         self.root,
+                        "0.1.2",
                     )
                 self.assertEqual([existing], list(output.iterdir()))
                 self.assertEqual(b"existing candidate", existing.read_bytes())
+
+    def test_prebuilt_rejects_unvalidated_version_before_replacing_output(self) -> None:
+        prior_path = self._prebuilt(self.root / "prebuilt")
+        prior_bytes = prior_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "does not match plugin source declarations"):
+            candidate.create_prebuilt_client_candidate(
+                self.overlay,
+                prior_path.parent,
+                self.plugin,
+                hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
+                self.root,
+                "0.1.3",
+            )
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
 
     def test_prebuilt_keeps_source_terms_status_and_json_checks(self) -> None:
         original = json.loads(self.overlay.read_text(encoding="utf-8"))
@@ -506,6 +613,7 @@ class ClientCandidateTests(unittest.TestCase):
                         self.plugin,
                         hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
                         self.root,
+                        "0.1.2",
                     )
                 self.assertFalse((self.root / "prebuilt").exists())
 
@@ -517,6 +625,7 @@ class ClientCandidateTests(unittest.TestCase):
                 self.plugin,
                 hashlib.sha256(self.assembly.read_bytes()).hexdigest(),
                 self.root,
+                "0.1.2",
             )
         self.assertFalse((self.root / "prebuilt").exists())
 

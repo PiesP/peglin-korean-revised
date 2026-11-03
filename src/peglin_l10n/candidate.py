@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .source_lock import sha256_file
+from .source_lock import plugin_source_version, selected_plugin_source_version, sha256_file
 
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -239,6 +239,7 @@ def _package_candidate(
     plugin_dll: Path,
     assembly_sha256: str,
     project_root: Path,
+    plugin_version: str,
     *,
     expected_source: tuple[str, str] | None = None,
 ) -> Path:
@@ -286,7 +287,7 @@ def _package_candidate(
             "minimumBepInExVersion": _BEPINEX_VERSION,
             "recommendedPeglinPack": f"BepInExPack_Peglin {_PEGLIN_BEPINEX_PACK_VERSION}",
             "pluginGuid": _PLUGIN_GUID,
-            "pluginVersion": PLUGIN_VERSION,
+            "pluginVersion": plugin_version,
             "assemblyCSharpSha256": assembly_sha256,
         },
         "files": {
@@ -321,15 +322,21 @@ def create_prebuilt_client_candidate(
     plugin_dll: Path,
     assembly_sha256: str,
     project_root: Path,
+    plugin_version: str,
 ) -> Path:
     """Package a verified tracked plugin without an installed Peglin copy."""
+
+    project_root = project_root.expanduser().resolve()
+    if plugin_source_version(project_root) != plugin_version:
+        raise ValueError("Prebuilt plugin version does not match plugin source declarations.")
 
     return _package_candidate(
         overlay_path.expanduser().resolve(),
         candidate_dir.expanduser().resolve(),
         plugin_dll.expanduser().resolve(),
         assembly_sha256,
-        project_root.expanduser().resolve(),
+        project_root,
+        plugin_version,
     )
 
 
@@ -369,6 +376,8 @@ def create_client_candidate(
         )
     if candidate_dir == game_root or candidate_dir.is_relative_to(game_root):
         raise ValueError("Candidate output must be outside the Peglin installation directory.")
+
+    plugin_version = selected_plugin_source_version(plugin_project)
 
     overlay, _ = _read_overlay(overlay_path)
     source = overlay["source"]
@@ -430,6 +439,8 @@ def create_client_candidate(
         raise ValueError("Peglin resources.assets changed while building the client candidate.")
     if sha256_file(game_assembly) != installed_assembly_sha256:
         raise ValueError("Peglin Assembly-CSharp.dll changed while building the client candidate.")
+    if selected_plugin_source_version(plugin_project) != plugin_version:
+        raise ValueError("Plugin source version changed while building the client candidate.")
 
     return _package_candidate(
         overlay_path,
@@ -437,5 +448,6 @@ def create_client_candidate(
         plugin_dll,
         installed_assembly_sha256,
         project_root,
+        plugin_version,
         expected_source=expected_source,
     )

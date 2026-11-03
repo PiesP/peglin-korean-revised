@@ -268,6 +268,7 @@ def build_release_candidate(
         plugin_path,
         source_lock["assemblyCSharpSha256"],
         project_root,
+        source_lock["runtime"]["pluginVersion"],
     )
 
     license_path = output_dir / "LICENSE"
