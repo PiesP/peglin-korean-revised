@@ -414,40 +414,45 @@ def create_client_candidate(
         ],
         project_dir,
     )
-    _run_dotnet(
-        [
-            dotnet,
-            "build",
-            str(plugin_project),
-            "--no-restore",
-            "--configuration",
-            "Release",
-            "--verbosity",
-            "minimal",
-            "--nologo",
-            property_argument,
-            "-p:ContinuousIntegrationBuild=true",
-        ],
-        project_dir,
-    )
+    with tempfile.TemporaryDirectory(prefix=".candidate-build-", dir=project_dir) as build_output:
+        _run_dotnet(
+            [
+                dotnet,
+                "build",
+                str(plugin_project),
+                "--no-restore",
+                "--configuration",
+                "Release",
+                "--output",
+                build_output,
+                "--verbosity",
+                "minimal",
+                "--nologo",
+                property_argument,
+                "-p:ContinuousIntegrationBuild=true",
+            ],
+            project_dir,
+        )
 
-    plugin_dll = project_dir / "bin" / "Release" / "net46" / "PeglinKoreanRevised.dll"
-    if not plugin_dll.is_file():
-        raise ValueError(f"Plugin build did not produce its DLL: {plugin_dll}")
+        plugin_dll = Path(build_output) / "PeglinKoreanRevised.dll"
+        if not plugin_dll.is_file():
+            raise ValueError(f"Plugin build did not produce its DLL: {plugin_dll}")
 
-    if sha256_file(game_asset) != installed_asset_sha256:
-        raise ValueError("Peglin resources.assets changed while building the client candidate.")
-    if sha256_file(game_assembly) != installed_assembly_sha256:
-        raise ValueError("Peglin Assembly-CSharp.dll changed while building the client candidate.")
-    if selected_plugin_source_version(plugin_project) != plugin_version:
-        raise ValueError("Plugin source version changed while building the client candidate.")
+        if sha256_file(game_asset) != installed_asset_sha256:
+            raise ValueError("Peglin resources.assets changed while building the client candidate.")
+        if sha256_file(game_assembly) != installed_assembly_sha256:
+            raise ValueError(
+                "Peglin Assembly-CSharp.dll changed while building the client candidate."
+            )
+        if selected_plugin_source_version(plugin_project) != plugin_version:
+            raise ValueError("Plugin source version changed while building the client candidate.")
 
-    return _package_candidate(
-        overlay_path,
-        candidate_dir,
-        plugin_dll,
-        installed_assembly_sha256,
-        project_root,
-        plugin_version,
-        expected_source=expected_source,
-    )
+        return _package_candidate(
+            overlay_path,
+            candidate_dir,
+            plugin_dll,
+            installed_assembly_sha256,
+            project_root,
+            plugin_version,
+            expected_source=expected_source,
+        )

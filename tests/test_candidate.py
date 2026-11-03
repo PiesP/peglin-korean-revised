@@ -98,13 +98,18 @@ class ClientCandidateTests(unittest.TestCase):
     def _write_overlay(self, overlay: dict[str, object]) -> None:
         self.overlay.write_text(json.dumps(overlay, ensure_ascii=False) + "\n", encoding="utf-8")
 
+    def _write_build_output(self, command: list[str]) -> None:
+        output = Path(command[command.index("--output") + 1]) / "PeglinKoreanRevised.dll"
+        self.assertTrue(output.parent.is_dir())
+        self.assertNotEqual(self.plugin, output)
+        output.write_bytes(b"fixture compiled plugin\x00")
+
     def _build(self, changed_file: Path | None = None) -> Path:
         def fake_dotnet(command: list[str], project_dir: Path) -> None:
             self.assertEqual(self.project.parent, project_dir)
             self.commands.append(command[1])
             if command[1] == "build":
-                self.plugin.parent.mkdir(parents=True, exist_ok=True)
-                self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                self._write_build_output(command)
                 if changed_file is not None:
                     changed_file.write_bytes(changed_file.read_bytes() + b"changed")
 
@@ -209,6 +214,7 @@ class ClientCandidateTests(unittest.TestCase):
                     self.assertEqual(self.project.parent, project_dir)
                     self.commands.append(command[1])
                     if command[1] == "build":
+                        self._write_build_output(command)
                         self._write_overlay(overlay)
 
                 with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
@@ -439,6 +445,50 @@ class ClientCandidateTests(unittest.TestCase):
         self.assertEqual("0.1.3", manifest["runtime"]["pluginVersion"])
         self.assertEqual(["restore", "build"], self.commands)
 
+    def test_alternate_project_output_cannot_package_stale_default_dll(self) -> None:
+        self.plugin.parent.mkdir(parents=True)
+        self.plugin.write_bytes(b"stale plugin version 0.1.2")
+        self.project.write_text(
+            "<Project><PropertyGroup><Version>0.1.3</Version>"
+            "<OutputPath>other/</OutputPath></PropertyGroup></Project>\n",
+            encoding="utf-8",
+        )
+        (self.project.parent / "Plugin.cs").write_text(
+            '[BepInPlugin("id", "name", "0.1.3")] public class Plugin {}\n',
+            encoding="utf-8",
+        )
+
+        with zipfile.ZipFile(self._build()) as archive:
+            self.assertEqual(
+                b"fixture compiled plugin\x00",
+                archive.read("BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"),
+            )
+            manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+        self.assertEqual("0.1.3", manifest["runtime"]["pluginVersion"])
+        self.assertEqual(b"stale plugin version 0.1.2", self.plugin.read_bytes())
+
+    def test_missing_fresh_output_rejects_stale_dll_and_preserves_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        self.plugin.parent.mkdir(parents=True, exist_ok=True)
+        self.plugin.write_bytes(b"stale plugin version 0.1.2")
+        self.commands.clear()
+
+        def fake_dotnet(command: list[str], project_dir: Path) -> None:
+            self.commands.append(command[1])
+
+        with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+            with self.assertRaisesRegex(ValueError, "Plugin build did not produce its DLL"):
+                candidate.create_client_candidate(
+                    self.overlay,
+                    self.game,
+                    prior_path.parent,
+                    self.project,
+                    project_root=self.root,
+                )
+        self.assertEqual(["restore", "build"], self.commands)
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
+
     def test_default_project_version_stays_unchanged(self) -> None:
         with zipfile.ZipFile(self._build()) as archive:
             manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
@@ -493,6 +543,7 @@ class ClientCandidateTests(unittest.TestCase):
         def fake_dotnet(command: list[str], project_dir: Path) -> None:
             self.commands.append(command[1])
             if command[1] == "build":
+                self._write_build_output(command)
                 self.project.write_text(
                     "<Project><PropertyGroup><Version>0.1.3</Version></PropertyGroup></Project>\n",
                     encoding="utf-8",
@@ -651,8 +702,7 @@ class ClientCandidateTests(unittest.TestCase):
             self.assertEqual(self.project.parent, project_dir)
             self.commands.append(command[1])
             if command[1] == "build":
-                self.plugin.parent.mkdir(parents=True, exist_ok=True)
-                self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                self._write_build_output(command)
                 original["source"]["assetSha256"] = "A" * 64
                 self._write_overlay(original)
 
@@ -694,7 +744,7 @@ class ClientCandidateTests(unittest.TestCase):
                     self.assertEqual(self.project.parent, project_dir)
                     self.commands.append(command[1])
                     if command[1] == "build":
-                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self._write_build_output(command)
                         self.overlay.write_bytes(replacement_bytes)
 
                 with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
@@ -747,8 +797,7 @@ class ClientCandidateTests(unittest.TestCase):
                     self.assertEqual(self.project.parent, project_dir)
                     self.commands.append(command[1])
                     if command[1] == "build":
-                        self.plugin.parent.mkdir(parents=True, exist_ok=True)
-                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self._write_build_output(command)
                         self.overlay.write_bytes(final_bytes)
 
                 with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
@@ -836,7 +885,7 @@ class ClientCandidateTests(unittest.TestCase):
                     self.assertEqual(self.project.parent, project_dir)
                     self.commands.append(command[1])
                     if command[1] == "build":
-                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self._write_build_output(command)
                         self.overlay.write_bytes(replacement_bytes)
 
                 with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
@@ -865,7 +914,7 @@ class ClientCandidateTests(unittest.TestCase):
                     if command[1] == failure:
                         raise ValueError(f"injected {failure} failure")
                     if command[1] == "build":
-                        self.plugin.write_bytes(b"fixture compiled plugin\x00")
+                        self._write_build_output(command)
 
                 with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
                     if failure == "zip-write":
