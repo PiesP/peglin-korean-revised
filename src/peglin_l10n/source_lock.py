@@ -173,6 +173,17 @@ def selected_plugin_source_version(project_path: Path) -> str:
         for element in project.getroot().iter()
     ):
         raise ValueError("Plugin project source selection is unsupported for version validation.")
+    assembly_names = [
+        element.text.strip()
+        for element in project.getroot().iter()
+        if element.tag.rsplit("}", 1)[-1] == "AssemblyName"
+        and isinstance(element.text, str)
+        and element.text.strip()
+    ]
+    if len(assembly_names) > 1 or (assembly_names or [project_path.stem]) != [
+        "PeglinKoreanRevised"
+    ]:
+        raise ValueError("Plugin project must build PeglinKoreanRevised.dll.")
     project_versions = [
         element.text.strip()
         for element in project.getroot().iter()

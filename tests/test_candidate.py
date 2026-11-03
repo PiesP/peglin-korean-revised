@@ -423,7 +423,8 @@ class ClientCandidateTests(unittest.TestCase):
             (selected_dir / filename).write_bytes((self.project.parent / filename).read_bytes())
         self.project = selected_dir / "Custom.csproj"
         self.project.write_text(
-            "<Project><PropertyGroup><Version>0.1.3</Version></PropertyGroup></Project>\n",
+            "<Project><PropertyGroup><AssemblyName>PeglinKoreanRevised</AssemblyName>"
+            "<Version>0.1.3</Version></PropertyGroup></Project>\n",
             encoding="utf-8",
         )
         (selected_dir / "Plugin.cs").write_text(
@@ -466,6 +467,20 @@ class ClientCandidateTests(unittest.TestCase):
         )
         self.commands.clear()
         with self.assertRaisesRegex(ValueError, "source selection is unsupported"):
+            self._build()
+        self.assertEqual([], self.commands)
+        self.assertEqual(prior_bytes, prior_path.read_bytes())
+
+    def test_wrong_assembly_name_preserves_existing_candidate(self) -> None:
+        prior_path = self._build()
+        prior_bytes = prior_path.read_bytes()
+        self.project.write_text(
+            "<Project><PropertyGroup><AssemblyName>OtherPlugin</AssemblyName>"
+            "<Version>0.1.2</Version></PropertyGroup></Project>\n",
+            encoding="utf-8",
+        )
+        self.commands.clear()
+        with self.assertRaisesRegex(ValueError, "must build PeglinKoreanRevised.dll"):
             self._build()
         self.assertEqual([], self.commands)
         self.assertEqual(prior_bytes, prior_path.read_bytes())
