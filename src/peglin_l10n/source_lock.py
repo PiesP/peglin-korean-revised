@@ -153,15 +153,37 @@ def category_slug(category: str) -> str:
     return slug
 
 
-def plugin_source_version(project_root: Path) -> str:
-    """Read and cross-check the version declared by both plugin source files."""
+def selected_plugin_source_version(project_path: Path) -> str:
+    """Cross-check the selected project and its sibling Plugin.cs version."""
 
-    project_path = project_root / "plugin" / "PeglinKoreanRevised.csproj"
-    plugin_path = project_root / "plugin" / "Plugin.cs"
+    plugin_path = project_path.parent / "Plugin.cs"
     try:
         project = ElementTree.parse(project_path)
     except (OSError, ElementTree.ParseError) as exc:
         raise ValueError(f"Could not read plugin project version: {exc}") from exc
+    if any(
+        element.tag.rsplit("}", 1)[-1]
+        in {
+            "Compile",
+            "Import",
+            "EnableDefaultItems",
+            "EnableDefaultCompileItems",
+            "DefaultItemExcludes",
+        }
+        for element in project.getroot().iter()
+    ):
+        raise ValueError("Plugin project source selection is unsupported for version validation.")
+    assembly_names = [
+        element.text.strip()
+        for element in project.getroot().iter()
+        if element.tag.rsplit("}", 1)[-1] == "AssemblyName"
+        and isinstance(element.text, str)
+        and element.text.strip()
+    ]
+    if len(assembly_names) > 1 or (assembly_names or [project_path.stem]) != [
+        "PeglinKoreanRevised"
+    ]:
+        raise ValueError("Plugin project must build PeglinKoreanRevised.dll.")
     project_versions = [
         element.text.strip()
         for element in project.getroot().iter()
@@ -181,6 +203,12 @@ def plugin_source_version(project_root: Path) -> str:
     if project_versions[0] != attribute_versions[0]:
         raise ValueError("Plugin.cs BepInPlugin version does not match the project Version.")
     return project_versions[0]
+
+
+def plugin_source_version(project_root: Path) -> str:
+    """Read and cross-check the default plugin's source version."""
+
+    return selected_plugin_source_version(project_root / "plugin" / "PeglinKoreanRevised.csproj")
 
 
 def read_source_lock(path: Path) -> dict[str, Any]:
