@@ -22,7 +22,7 @@ module-name = "peglin_l10n"
 
 [tool.maintenance]
 python = "3.14"
-uv = "0.13.6"
+uv = "0.13.7"
 
 [dependency-groups]
 dev = ["ruff==0.17.3"]
