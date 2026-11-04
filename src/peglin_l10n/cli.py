@@ -403,7 +403,7 @@ def _run_lint_overrides(args: argparse.Namespace) -> int:
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     for issue in issues:
         location = f" [{issue.term}]" if issue.term else ""
-        print(f"{issue.severity.upper()} {issue.code}{location}: {issue.message}")
+        print(f"{issue.severity.upper()} {issue.code}{location}: {issue.message}", file=sys.stderr)
     return 1 if summary["errors"] else 0
 
 
@@ -421,7 +421,7 @@ def _run_validate(args: argparse.Namespace) -> int:
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     for issue in issues:
         location = f" [{issue.term}]" if issue.term else ""
-        print(f"{issue.severity.upper()} {issue.code}{location}: {issue.message}")
+        print(f"{issue.severity.upper()} {issue.code}{location}: {issue.message}", file=sys.stderr)
     return 1 if summary["errors"] else 0
 
 
