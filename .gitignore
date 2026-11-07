@@ -16,6 +16,8 @@ __pycache__/
 /patches/candidates/
 /plugin/bin/
 /plugin/obj/
+/tests/csharp/**/bin/
+/tests/csharp/**/obj/
 
 # Generated output of the CodeQL reference-only projects.
 /.github/codeql-reference-stubs/**/bin/

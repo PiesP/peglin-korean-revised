@@ -10,7 +10,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from peglin_l10n import candidate
-from peglin_l10n.source_lock import sha256_file
+from peglin_l10n.source_lock import (
+    plugin_source_inputs_sha256,
+    selected_plugin_source_inputs,
+    sha256_file,
+)
 
 
 class FileHashTests(unittest.TestCase):
@@ -493,6 +497,63 @@ class ClientCandidateTests(unittest.TestCase):
         with zipfile.ZipFile(self._build()) as archive:
             manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
         self.assertEqual("0.1.2", manifest["runtime"]["pluginVersion"])
+        self.assertEqual(
+            plugin_source_inputs_sha256(
+                self.root, selected_plugin_source_inputs(self.root, self.project)
+            ),
+            manifest["runtime"]["sourceInputsSha256"],
+        )
+        self.assertEqual(
+            list(selected_plugin_source_inputs(self.root, self.project)),
+            manifest["runtime"]["sourceInputs"],
+        )
+
+    def test_new_compiled_source_is_included_and_source_drift_preserves_candidate(self) -> None:
+        extra = self.project.parent / "OverlaySession.cs"
+        extra.write_text("internal class OverlaySession {}\n", encoding="utf-8")
+        prior = self._build()
+        with zipfile.ZipFile(prior) as archive:
+            manifest = json.loads(archive.read("BepInEx/plugins/PeglinKoreanRevised/manifest.json"))
+        self.assertIn(
+            "plugin/OverlaySession.cs", selected_plugin_source_inputs(self.root, self.project)
+        )
+        self.assertEqual(
+            plugin_source_inputs_sha256(
+                self.root, selected_plugin_source_inputs(self.root, self.project)
+            ),
+            manifest["runtime"]["sourceInputsSha256"],
+        )
+        prior_bytes = prior.read_bytes()
+        self.commands.clear()
+        with self.assertRaisesRegex(ValueError, "compile inputs changed while building"):
+            self._build(changed_file=extra)
+        self.assertEqual(prior_bytes, prior.read_bytes())
+        for mutation in ("added", "deleted"):
+            with self.subTest(mutation=mutation):
+                extra.write_text("internal class OverlaySession {}\n", encoding="utf-8")
+
+                def fake_dotnet(command: list[str], project_dir: Path) -> None:
+                    self.commands.append(command[1])
+                    if command[1] == "build":
+                        self._write_build_output(command)
+                        if mutation == "added":
+                            (project_dir / "NewSource.cs").write_text("class NewSource {}\n")
+                        else:
+                            extra.unlink()
+
+                with patch.object(candidate, "_run_dotnet", side_effect=fake_dotnet):
+                    with self.assertRaisesRegex(
+                        ValueError, "compile inputs changed while building"
+                    ):
+                        candidate.create_client_candidate(
+                            self.overlay,
+                            self.game,
+                            prior.parent,
+                            self.project,
+                            project_root=self.root,
+                        )
+                self.assertEqual(prior_bytes, prior.read_bytes())
+                (self.project.parent / "NewSource.cs").unlink(missing_ok=True)
 
     def test_mismatched_plugin_declarations_preserve_existing_candidate(self) -> None:
         prior_path = self._build()

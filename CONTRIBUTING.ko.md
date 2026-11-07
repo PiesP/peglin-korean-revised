@@ -195,6 +195,34 @@ file. Both public-stub and CodeQL C# phases print and verify the selected SDK.
 | `peglin-l10n diff` | Compare two snapshots; `cli.py`, `diffing.py` | Locked package environment and two local snapshots | `--old`, `--new`, optional `--output`; JSON stdout or report file; package tests |
 | `peglin-l10n fingerprint` | Compute one source row fingerprint; `cli.py`, `fingerprints.py` | Locked package environment and local `terms.csv` | `--terms`, `--term`; JSON stdout, no writes; package tests |
 
+### Product runtime composition and ownership
+
+The required `Plugin : BaseUnityPlugin` is the framework composition root. It
+loads an `OverlayPackage` before registering the scene callback, verifies the
+installed game files synchronously before starting translation work, and owns
+one `OverlaySession`. The package holds accepted terms and expected file hashes;
+`SourceVerifier` owns the game-file hash decision. The session owns bounded
+initial and scene polling, stable applied-source identity and late-callback
+rejection. `I2LocalizationAdapter` owns I2 subscriptions and term writes behind
+the session's batch localization port. `OnDestroy` detaches the scene callback
+and disposes the session/adapter once; it does not restore previous translations.
+The dependency-free `tests/csharp/OverlaySessionContracts` runner checks bounded
+polling, stable source identity, update decisions and teardown under the pinned
+SDK. Public stubs and this runner cannot establish actual I2/game behavior.
+These are product-owned collaborators under the
+[common composition policy](https://github.com/PiesP/.github/blob/master/MAINTENANCE_POLICY.md#composition-and-behavioral-contracts),
+while `BaseUnityPlugin` remains the required external framework boundary.
+
+The installed-game candidate builder inventories the selected project's
+SDK-default `.cs` compile inputs plus its project, NuGet configuration and lock
+file. It records their path-bound digest in the candidate manifest and refuses
+changes to that inventory or its bytes during compilation. The tracked release
+DLL and source lock below bind the new game-reference build; the older retained
+receipt belongs to its historical source and DLL. Game-runtime qualification of
+the newly built candidate is required before integration.
+The [existing candidate command](#automation-command-catalog) retains its own
+package and game-input validation.
+
 The candidate packaging boundary validates the captured overlay bytes against
 the supported runtime contract before creating or replacing an install ZIP.
 Both routes require integer `schemaVersion: 1`, the Peglin/ko overlay identity,
@@ -244,19 +272,17 @@ installed ZIP total. The tracked release DLL is identified separately from a
 public-reference or installed-game build. Keep the report and comparison decision
 in the owning review record; it is not an eighth public release file.
 
-The tracked release DLL retains its historical source-input association from
-`c68920cacea8b052cf67894f9117aabf43fdd32a`. The separate
-`translation/runtime-retention.json` records the exact source inputs from that
-commit and the current input digest after the BepInEx compile dependency change.
-Release validation checks the unchanged `Plugin.cs` and `NuGet.Config` bytes,
-reconstructs the historical input digest, and requires the exact current input
-digest and tracked DLL hash. Any further drift fails closed. The receipt does
-not claim the tracked DLL was rebuilt from the current inputs: the #48
-installed-game before/after comparison produced byte-identical pairs of its own
-DLL and ZIP, but that diagnostic DLL differs from the tracked release DLL.
-The source lock's historical DLL and input hashes, supported-game file hashes,
-public manifest schema and seven release files remain unchanged. The optional
-footprint report identifies both input digests and the receipt hash.
+The tracked DLL and `translation/source-lock.json` bind the complete current
+compile-input inventory and the newly built DLL bytes. Release validation
+rejects extra, removed or modified SDK-default C# inputs and mismatched DLLs.
+The old `translation/runtime-retention.json` remains byte-for-byte historical
+evidence for the earlier DLL at source `c68920cacea8b052cf67894f9117aabf43fdd32a`;
+it is not a receipt for the composed implementation. Git history retains the
+old source and binary. The new association still requires fresh game-runtime
+qualification before integration or public release. The supported-game file
+hashes and translation status remain unchanged. The optional footprint report
+identifies the current source digest and does not treat the historical receipt
+as a current runtime credential.
 
 | Workflow helper | Runtime, inputs and effects | Tests |
 | --- | --- | --- |
