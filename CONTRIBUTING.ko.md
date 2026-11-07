@@ -222,6 +222,8 @@ receipt belongs to its historical source and DLL. Game-runtime qualification of
 the newly built candidate is required before integration.
 The [existing candidate command](#automation-command-catalog) retains its own
 package and game-input validation.
+`build-candidate --plugin-project` must point to a project inside the current
+checkout's source root. A project in a separate source tree is not supported.
 
 The candidate packaging boundary validates the captured overlay bytes against
 the supported runtime contract before creating or replacing an install ZIP.
