@@ -202,6 +202,10 @@ static class Program
         string directory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
         string overlayPath = Path.Combine(directory, "overlay.json");
         string manifestPath = Path.Combine(directory, "manifest.json");
+        string gameRoot = Path.Combine(Path.GetTempPath(), "peglin-overlay-contract-" + Guid.NewGuid());
+        string previousGameRoot = Paths.GameRootPath;
+        byte[] assetBytes = Encoding.UTF8.GetBytes("contract game asset");
+        byte[] assemblyBytes = Encoding.UTF8.GetBytes("contract game assembly");
         Require(!File.Exists(overlayPath) && !File.Exists(manifestPath),
             "test output must not contain a preexisting candidate package");
         string pluginHash = Sha256(File.ReadAllBytes(Assembly.GetExecutingAssembly().Location));
@@ -211,7 +215,7 @@ static class Program
             status = "draft", source = new
             {
                 steamAppId = "1296610", steamBuildId = "test-build", unityVersion = "test-unity",
-                assetSha256 = new string('a', 64)
+                assetSha256 = Sha256(assetBytes)
             },
             terms = new Dictionary<string, object> { ["term"] = new { translation = "translated" } }
         });
@@ -222,9 +226,9 @@ static class Program
             source = new
             {
                 steamAppId = "1296610", steamBuildId = "test-build", unityVersion = "test-unity",
-                assetSha256 = new string('a', 64)
+                assetSha256 = Sha256(assetBytes)
             },
-            runtime = new { assemblyCSharpSha256 = new string('b', 64) },
+            runtime = new { assemblyCSharpSha256 = Sha256(assemblyBytes) },
             files = new Dictionary<string, string>
             {
                 ["BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"] = pluginHash,
@@ -240,6 +244,11 @@ static class Program
 
         try
         {
+            string dataDirectory = Path.Combine(gameRoot, "Peglin_Data");
+            Directory.CreateDirectory(Path.Combine(dataDirectory, "Managed"));
+            File.WriteAllBytes(Path.Combine(dataDirectory, "resources.assets"), assetBytes);
+            File.WriteAllBytes(Path.Combine(dataDirectory, "Managed", "Assembly-CSharp.dll"), assemblyBytes);
+            Paths.GameRootPath = gameRoot;
             string validManifest = ValidManifest(validOverlay);
             Write(validOverlay, validManifest);
             var warnings = new List<string>();
@@ -276,30 +285,77 @@ static class Program
                 "invalid package must not start plugin work");
 
             SceneManager.Reset();
+            LocalizationManager.Reset();
+            var failedSource = new LanguageSourceData();
+            var failedTerm = new TermData();
+            failedSource.Terms.Add("term", failedTerm);
+            LocalizationManager.Sources = new List<LanguageSourceData> { failedSource };
             Write(validOverlay, validManifest);
             var partialPlugin = new Plugin();
             partialPlugin.Logger.ThrowOnNextInfo = true;
             Invoke(partialPlugin, "Awake");
+            Invoke(partialPlugin, "Start");
+            Require(!partialPlugin.Logger.Info.Contains("Starting Peglin source file verification."),
+                "failed Awake must not enter synchronous source verification in Start");
+            Require(partialPlugin.StartedCoroutines.Count == 0 && LocalizationManager.InitializeCount == 0,
+                "failed Awake must not schedule or perform translation work");
+            SceneManager.Raise();
             Invoke(partialPlugin, "OnDestroy");
             Invoke(partialPlugin, "OnDestroy");
             SceneManager.Raise();
+            failedSource.RaiseUpdate(true);
             Require(partialPlugin.Logger.Error.Count == 1 &&
-                SceneManager.SubscribeCount == 0 && SceneManager.UnsubscribeCount == 1 &&
-                partialPlugin.StartedCoroutines.Count == 0,
+                SceneManager.SubscribeCount == 0 &&
+                partialPlugin.StartedCoroutines.Count == 0 &&
+                failedSource.SubscribeCount == 0 && failedTerm.Writes == 0 &&
+                LocalizationManager.InitializeCount == 0 && LocalizationManager.LocalizeCount == 0,
                 "partially initialized plugin must retire once without scene work");
 
             SceneManager.Reset();
+            LocalizationManager.Reset();
+            var initialSource = new LanguageSourceData();
+            var initialTerm = new TermData();
+            initialSource.Terms.Add("term", initialTerm);
+            LocalizationManager.Sources = new List<LanguageSourceData> { initialSource };
             var readyPlugin = new Plugin();
             Invoke(readyPlugin, "Awake");
+            Require(SceneManager.SubscribeCount == 1 && readyPlugin.StartedCoroutines.Count == 0,
+                "successful Awake must subscribe without scheduling work before verification");
+            Invoke(readyPlugin, "Start");
+            Require(readyPlugin.Logger.Info.Contains("Starting Peglin source file verification.") &&
+                readyPlugin.Logger.Info.Exists(message => message.StartsWith("Verified resources.assets SHA-256 ", StringComparison.Ordinal)) &&
+                readyPlugin.StartedCoroutines.Count == 1 && LocalizationManager.InitializeCount == 0,
+                "successful Start must verify synchronously before scheduling initial application");
+            Require(Drain(readyPlugin.StartedCoroutines[0]) == 29 && initialTerm.Writes == 1 &&
+                initialTerm.Translation == "translated" && LocalizationManager.LocalizeCount == 1,
+                "successful startup must apply translations with the stable-frame bound");
+            var sceneSource = new LanguageSourceData();
+            var sceneTerm = new TermData();
+            sceneSource.Terms.Add("term", sceneTerm);
+            LocalizationManager.Sources.Add(sceneSource);
+            SceneManager.Raise();
+            Require(readyPlugin.StartedCoroutines.Count == 2 &&
+                Drain(readyPlugin.StartedCoroutines[1]) == 30 &&
+                initialTerm.Writes == 1 && sceneTerm.Writes == 1 &&
+                LocalizationManager.LocalizeCount == 2,
+                "scene continuation must apply only the new I2 source");
             Invoke(readyPlugin, "OnDestroy");
             Invoke(readyPlugin, "OnDestroy");
-            Require(SceneManager.SubscribeCount == 1 && SceneManager.UnsubscribeCount == 1,
-                "fully initialized plugin must release its scene subscription once");
+            SceneManager.Raise();
+            initialSource.RaiseUpdate(true);
+            sceneSource.RaiseUpdate(true);
+            Require(SceneManager.SubscribeCount == 1 && SceneManager.UnsubscribeCount == 1 &&
+                initialSource.UnsubscribeCount == 1 && sceneSource.UnsubscribeCount == 1 &&
+                readyPlugin.StartedCoroutines.Count == 2 &&
+                initialTerm.Writes == 1 && sceneTerm.Writes == 1,
+                "fully initialized plugin must retire scene and I2 callbacks once");
         }
         finally
         {
+            Paths.GameRootPath = previousGameRoot;
             File.Delete(overlayPath);
             File.Delete(manifestPath);
+            Directory.Delete(gameRoot, true);
         }
     }
 

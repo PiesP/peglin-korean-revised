@@ -119,7 +119,7 @@ def _parser() -> argparse.ArgumentParser:
         "--plugin-project",
         type=Path,
         default=PROJECT_ROOT / "plugin" / "PeglinKoreanRevised.csproj",
-        help="BepInEx plugin project to compile",
+        help="BepInEx plugin project to compile (must be within this checkout's source root)",
     )
     build_candidate.add_argument(
         "--dotnet",
