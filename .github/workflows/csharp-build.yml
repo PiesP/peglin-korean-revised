@@ -27,6 +27,8 @@ jobs:
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
+      - name: Check overlay session lifecycle contracts
+        run: dotnet run --project tests/csharp/OverlaySessionContracts/OverlaySessionContracts.csproj --configuration Release
       # Hosted runners build against the maintained public API stubs only.
       # The locked game DLLs and in-game behavior need separate local validation.
       - name: Build public reference stubs

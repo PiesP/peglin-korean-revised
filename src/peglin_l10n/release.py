@@ -97,8 +97,8 @@ def _write_footprint_report(
     uv_lock = project_root / "uv.lock"
     pyproject = project_root / "pyproject.toml"
     current_inputs_hash = plugin_source_inputs_sha256(project_root, plugin_source_inputs)
-    historical_inputs_hash = source_lock["runtime"]["sourceInputsSha256"]
-    retained = current_inputs_hash != historical_inputs_hash
+    locked_inputs_hash = source_lock["runtime"]["sourceInputsSha256"]
+    retained = current_inputs_hash != locked_inputs_hash
     retention_path = project_root / RETAINED_RUNTIME_RECEIPT
     retention_receipt = json.loads(retention_path.read_text(encoding="utf-8")) if retained else None
     report = {
@@ -109,7 +109,7 @@ def _write_footprint_report(
             "historical_source_revision": (
                 retention_receipt["historicalSourceRevision"] if retention_receipt else None
             ),
-            "historical_source_inputs_sha256": historical_inputs_hash,
+            "locked_source_inputs_sha256": locked_inputs_hash,
             "current_source_inputs_sha256": current_inputs_hash,
             "retention_receipt_sha256": sha256_file(retention_path) if retained else None,
         },

@@ -13,7 +13,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .source_lock import plugin_source_version, selected_plugin_source_version, sha256_file
+from .source_lock import (
+    plugin_source_inputs_sha256,
+    plugin_source_version,
+    selected_plugin_source_inputs,
+    selected_plugin_source_version,
+    sha256_file,
+)
 
 _BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -242,6 +248,8 @@ def _package_candidate(
     plugin_version: str,
     *,
     expected_source: tuple[str, str] | None = None,
+    source_inputs_sha256: str | None = None,
+    source_inputs: tuple[str, ...] | None = None,
 ) -> Path:
     overlay, overlay_bytes = _read_overlay(overlay_path)
     source = overlay["source"]
@@ -289,6 +297,8 @@ def _package_candidate(
             "pluginGuid": _PLUGIN_GUID,
             "pluginVersion": plugin_version,
             "assemblyCSharpSha256": assembly_sha256,
+            **({"sourceInputsSha256": source_inputs_sha256} if source_inputs_sha256 else {}),
+            **({"sourceInputs": list(source_inputs)} if source_inputs else {}),
         },
         "files": {
             _PLUGIN_ARCHIVE_PATH: plugin_sha256,
@@ -378,6 +388,8 @@ def create_client_candidate(
         raise ValueError("Candidate output must be outside the Peglin installation directory.")
 
     plugin_version = selected_plugin_source_version(plugin_project)
+    source_inputs = selected_plugin_source_inputs(project_root, plugin_project)
+    source_inputs_sha256 = plugin_source_inputs_sha256(project_root, source_inputs)
 
     overlay, _ = _read_overlay(overlay_path)
     source = overlay["source"]
@@ -446,6 +458,11 @@ def create_client_candidate(
             )
         if selected_plugin_source_version(plugin_project) != plugin_version:
             raise ValueError("Plugin source version changed while building the client candidate.")
+        if (
+            selected_plugin_source_inputs(project_root, plugin_project) != source_inputs
+            or plugin_source_inputs_sha256(project_root, source_inputs) != source_inputs_sha256
+        ):
+            raise ValueError("Plugin compile inputs changed while building the client candidate.")
 
         return _package_candidate(
             overlay_path,
@@ -455,4 +472,6 @@ def create_client_candidate(
             project_root,
             plugin_version,
             expected_source=expected_source,
+            source_inputs_sha256=source_inputs_sha256,
+            source_inputs=source_inputs,
         )

@@ -29,11 +29,22 @@ SOURCE_LOCK_FIELDS = {
     "runtime",
     "terms",
 }
-DEFAULT_PLUGIN_SOURCE_INPUTS = (
+HISTORICAL_PLUGIN_SOURCE_INPUTS = (
     "plugin/NuGet.Config",
     "plugin/PeglinKoreanRevised.csproj",
     "plugin/Plugin.cs",
     "plugin/packages.lock.json",
+)
+DEFAULT_PLUGIN_SOURCE_INPUTS = tuple(
+    sorted(
+        (
+            *HISTORICAL_PLUGIN_SOURCE_INPUTS,
+            "plugin/I2LocalizationAdapter.cs",
+            "plugin/OverlayPackage.cs",
+            "plugin/OverlaySession.cs",
+            "plugin/SourceVerifier.cs",
+        )
+    )
 )
 RETAINED_RUNTIME_RECEIPT = "translation/runtime-retention.json"
 RETAINED_RUNTIME_SOURCE_REVISION = "c68920cacea8b052cf67894f9117aabf43fdd32a"
@@ -75,6 +86,34 @@ def plugin_source_inputs_sha256(
     return digest.hexdigest()
 
 
+def selected_plugin_source_inputs(project_root: Path, project_path: Path) -> tuple[str, ...]:
+    """Inventory exactly the SDK-default handwritten C# sources for a selected project."""
+
+    project_root = project_root.resolve()
+    project_path = project_path.resolve()
+    project_dir = project_path.parent
+    if not project_dir.is_relative_to(project_root):
+        raise ValueError("Selected plugin project must be within the source root.")
+    sources = tuple(
+        sorted(
+            path.relative_to(project_root).as_posix()
+            for path in project_dir.rglob("*.cs")
+            if not any(part in {"bin", "obj"} for part in path.relative_to(project_dir).parts)
+        )
+    )
+    if (
+        not sources
+        or project_dir.joinpath("Plugin.cs").relative_to(project_root).as_posix() not in sources
+    ):
+        raise ValueError("Selected plugin has no Plugin.cs compile source.")
+    controls = tuple(
+        (project_dir / name).relative_to(project_root).as_posix()
+        for name in ("NuGet.Config", project_path.name, "packages.lock.json")
+    )
+    inputs = tuple(sorted((*controls, *sources)))
+    return inputs
+
+
 def validate_retained_runtime(
     project_root: Path,
     runtime: dict[str, Any],
@@ -112,7 +151,7 @@ def validate_retained_runtime(
         raise ValueError("Runtime retention receipt does not match locked DLL and inputs.")
     unchanged = receipt["unchangedInputsSha256"]
     historical = receipt["historicalChangedInputs"]
-    unchanged_paths = set(DEFAULT_PLUGIN_SOURCE_INPUTS) - set(RETAINED_CHANGED_INPUTS)
+    unchanged_paths = set(HISTORICAL_PLUGIN_SOURCE_INPUTS) - set(RETAINED_CHANGED_INPUTS)
     if (
         not isinstance(unchanged, dict)
         or set(unchanged) != unchanged_paths
@@ -121,7 +160,7 @@ def validate_retained_runtime(
     ):
         raise ValueError("Runtime retention input inventory is invalid.")
     digest = hashlib.sha256()
-    for relative_path in sorted(DEFAULT_PLUGIN_SOURCE_INPUTS):
+    for relative_path in sorted(HISTORICAL_PLUGIN_SOURCE_INPUTS):
         if relative_path in historical:
             historical_text = historical[relative_path]
             if not isinstance(historical_text, str):
@@ -331,9 +370,16 @@ def validate_runtime_provenance(
         raise ValueError(f"Tracked runtime plugin was not found: {plugin_path}")
     if sha256_file(plugin_path) != runtime["sha256"]:
         raise ValueError("Tracked runtime plugin hash does not match source-lock.json.")
+    selected_inputs = selected_plugin_source_inputs(
+        project_root, project_root / "plugin" / "PeglinKoreanRevised.csproj"
+    )
+    if tuple(sorted(source_inputs)) != selected_inputs:
+        raise ValueError("Plugin source inputs do not cover the selected compiled sources.")
     actual_inputs_hash = plugin_source_inputs_sha256(project_root, source_inputs)
     if actual_inputs_hash != runtime["sourceInputsSha256"]:
         if tuple(source_inputs) != DEFAULT_PLUGIN_SOURCE_INPUTS:
+            raise ValueError("Plugin source inputs do not match source-lock.json.")
+        if runtime["sha256"] != "ca98144293456f77e9b35f0b7e72ee88f6dab2a91a3d85623ce9b4d5aa1bd2a6":
             raise ValueError("Plugin source inputs do not match source-lock.json.")
         validate_retained_runtime(project_root, runtime, actual_inputs_hash)
     return plugin_path
