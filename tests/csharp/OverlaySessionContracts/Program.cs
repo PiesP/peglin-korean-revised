@@ -137,6 +137,53 @@ static class Program
 
         info.Clear(); errors.Clear();
         LocalizationManager.Reset();
+        var updatedSource = new LanguageSourceData();
+        LocalizationManager.Sources = new List<LanguageSourceData> { updatedSource };
+        var updatedSession = Make(new I2LocalizationAdapter(_ => { }), info, errors);
+        var updatedInitial = updatedSession.ApplyInitially();
+        Require(updatedInitial.MoveNext() && updatedSource.SubscribeCount == 1,
+            "initial polling must subscribe before a matching term arrives");
+        var updatedTerm = new TermData();
+        updatedSource.Terms.Add("term", updatedTerm);
+        updatedSource.RaiseUpdate(true);
+        Require(updatedTerm.Writes == 1 && updatedTerm.Translation == "translated" &&
+            LocalizationManager.LocalizeCount == 1,
+            "I2 update during initial polling must apply the first translation");
+        Require(Drain(updatedInitial) == 29 && errors.Count == 0 &&
+            info.Exists(message => message.Contains("Reapplied 1 Korean translations")) &&
+            updatedTerm.Writes == 1 && updatedSource.SubscribeCount == 1,
+            "initial completion must retain a successful I2 update without a false no-match error");
+        updatedSession.Dispose();
+        Require(updatedSource.UnsubscribeCount == 1, "updated source must unsubscribe once");
+
+        info.Clear(); errors.Clear();
+        LocalizationManager.Reset();
+        var sceneInitialSource = new LanguageSourceData();
+        LocalizationManager.Sources = new List<LanguageSourceData> { sceneInitialSource };
+        var sceneInitialSession = Make(new I2LocalizationAdapter(_ => { }), info, errors);
+        var sceneInitial = sceneInitialSession.ApplyInitially();
+        Require(sceneInitial.MoveNext() && sceneInitialSource.SubscribeCount == 1,
+            "initial polling must subscribe before the scene adds a matching source");
+        var firstSceneSource = new LanguageSourceData();
+        var firstSceneTerm = new TermData();
+        firstSceneSource.Terms.Add("term", firstSceneTerm);
+        LocalizationManager.Sources.Add(firstSceneSource);
+        var sceneDuringInitial = sceneInitialSession.ApplyAfterSceneLoad();
+        Require(sceneDuringInitial.MoveNext() && firstSceneTerm.Writes == 1 &&
+            firstSceneTerm.Translation == "translated" && LocalizationManager.LocalizeCount == 1,
+            "scene polling must apply the first translation while initial polling waits");
+        Require(Drain(sceneInitial) == 29 && errors.Count == 0 &&
+            info.Exists(message => message.Contains("Applied 1 Korean translations to a newly loaded")) &&
+            firstSceneTerm.Writes == 1,
+            "initial completion must retain scene success without a false no-match error");
+        Require(Drain(sceneDuringInitial) == 29 && firstSceneTerm.Writes == 1,
+            "remaining scene polling must not duplicate the application");
+        sceneInitialSession.Dispose();
+        Require(sceneInitialSource.UnsubscribeCount == 1 && firstSceneSource.UnsubscribeCount == 1,
+            "scene and initial source subscriptions must retire once");
+
+        info.Clear(); errors.Clear();
+        LocalizationManager.Reset();
         var source = new LanguageSourceData();
         var term = new TermData();
         source.Terms.Add("term", term);
@@ -219,7 +266,7 @@ static class Program
             },
             terms = new Dictionary<string, object> { ["term"] = new { translation = "translated" } }
         });
-        string ValidManifest(string overlay) => JsonSerializer.Serialize(new
+        string ManifestForBytes(byte[] overlayBytes) => JsonSerializer.Serialize(new
         {
             schemaVersion = 1, kind = "peglin-korean-client-candidate", game = "Peglin",
             steamAppId = "1296610", language = "ko", status = "draft", translationCount = 1,
@@ -233,9 +280,19 @@ static class Program
             {
                 ["BepInEx/plugins/PeglinKoreanRevised/PeglinKoreanRevised.dll"] = pluginHash,
                 ["BepInEx/plugins/PeglinKoreanRevised/overlay.json"] =
-                    Sha256(Encoding.UTF8.GetBytes(overlay))
+                    Sha256(overlayBytes)
             }
         });
+        string ValidManifest(string overlay) => ManifestForBytes(Encoding.UTF8.GetBytes(overlay));
+        byte[] EncodedWithPreamble(Encoding encoding, string content)
+        {
+            byte[] preamble = encoding.GetPreamble();
+            byte[] body = encoding.GetBytes(content);
+            byte[] result = new byte[preamble.Length + body.Length];
+            Buffer.BlockCopy(preamble, 0, result, 0, preamble.Length);
+            Buffer.BlockCopy(body, 0, result, preamble.Length, body.Length);
+            return result;
+        }
         void Write(string overlay, string manifest)
         {
             File.WriteAllText(overlayPath, overlay, new UTF8Encoding(false));
@@ -257,6 +314,52 @@ static class Program
                 package.SteamBuildId == "test-build" && warnings.Count == 1,
                 "valid package metadata and draft warning");
 
+            foreach (Encoding encoding in new Encoding[]
+            {
+                new UTF8Encoding(true), new UnicodeEncoding(false, true),
+                new UnicodeEncoding(true, true)
+            })
+            {
+                byte[] encodedOverlay = EncodedWithPreamble(encoding,
+                    validOverlay.Replace("translated", "한글 번역"));
+                File.WriteAllBytes(overlayPath, encodedOverlay);
+                File.WriteAllText(manifestPath, ManifestForBytes(encodedOverlay), new UTF8Encoding(false));
+                Require(OverlayPackage.Load(_ => { }).Translations["term"] == "한글 번역",
+                    "valid BOM-encoded Korean overlay must retain its decoded translation");
+            }
+
+            string overlayA = validOverlay.Replace("translated", "번역 A");
+            string overlayB = validOverlay.Replace("translated", "번역 B");
+            Write(overlayA, ValidManifest(overlayA));
+            Require(OverlayPackage.Load(_ => { }).Translations["term"] == "번역 A",
+                "valid Korean overlay A must load with its own manifest");
+            Write(overlayB, ValidManifest(overlayB));
+            Require(OverlayPackage.Load(_ => { }).Translations["term"] == "번역 B",
+                "valid Korean overlay B must load with its own manifest");
+
+            Write(overlayA, ValidManifest(overlayB));
+            bool replacedDuringLoad = false;
+            try
+            {
+                OverlayPackage.Load(_ =>
+                {
+                    File.WriteAllText(overlayPath, overlayB, new UTF8Encoding(false));
+                    replacedDuringLoad = true;
+                });
+                throw new Exception("overlay A was accepted under B's digest after replacement");
+            }
+            catch (InvalidDataException) { }
+            Require(replacedDuringLoad &&
+                File.ReadAllText(overlayPath, Encoding.UTF8) == overlayB,
+                "replacement must occur during the actual draft warning boundary");
+
+            Write(overlayA, ValidManifest(overlayA));
+            OverlayPackage verifiedSnapshot = OverlayPackage.Load(_ =>
+                File.WriteAllText(overlayPath, overlayB, new UTF8Encoding(false)));
+            Require(verifiedSnapshot.Translations["term"] == "번역 A" &&
+                File.ReadAllText(overlayPath, Encoding.UTF8) == overlayB,
+                "a verified A snapshot may be consumed after its path changes to B");
+
             string[] invalidOverlays =
             {
                 validOverlay.Replace("translated", ""),
@@ -272,6 +375,19 @@ static class Program
             AssertInvalidPackageWithoutWrites(overlayPath, manifestPath);
             Write(validOverlay, validManifest.Replace("\"translationCount\":1", "\"translationCount\":2"));
             AssertInvalidPackageWithoutWrites(overlayPath, manifestPath);
+
+            Write(validOverlay, validManifest);
+            File.Delete(overlayPath);
+            try { OverlayPackage.Load(_ => { }); throw new Exception("missing overlay was accepted"); }
+            catch (FileNotFoundException) { }
+            Directory.CreateDirectory(overlayPath);
+            try { OverlayPackage.Load(_ => { }); throw new Exception("unreadable overlay was accepted"); }
+            catch (UnauthorizedAccessException) { }
+            finally { Directory.Delete(overlayPath); }
+            Write(validOverlay, validManifest);
+            File.Delete(manifestPath);
+            try { OverlayPackage.Load(_ => { }); throw new Exception("missing manifest was accepted"); }
+            catch (FileNotFoundException) { }
 
             SceneManager.Reset();
             Write(invalidOverlays[0], validManifest);
@@ -377,11 +493,16 @@ static class Program
             "invalid package must not write files or localization state");
     }
 
-    public static int Main()
+    public static int Main(string[] args)
     {
-        SessionCases();
-        AdapterCases();
-        PackageAndPluginCases();
+        if (args.Length > 0 && Array.Exists(args, value =>
+            value != "session" && value != "adapter" && value != "package"))
+        {
+            throw new ArgumentException("Unknown OverlaySession contract case selector.");
+        }
+        if (args.Length == 0 || Array.IndexOf(args, "session") >= 0) SessionCases();
+        if (args.Length == 0 || Array.IndexOf(args, "adapter") >= 0) AdapterCases();
+        if (args.Length == 0 || Array.IndexOf(args, "package") >= 0) PackageAndPluginCases();
         Console.WriteLine("OverlaySession contract cases passed");
         return 0;
     }
