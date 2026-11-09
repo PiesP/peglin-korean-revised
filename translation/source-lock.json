@@ -13,8 +13,8 @@
   "runtime": {
     "path": "runtime/PeglinKoreanRevised.dll",
     "pluginVersion": "0.1.2",
-    "sha256": "b271960381027ff773ae9eb9ea8bf18e8185d1feee67e9f554afdc9ad3fb8128",
-    "sourceInputsSha256": "d46ae4012f320c5c3516a2e7083b8fd3af9795a2b327aa85da1f124da4ca0e62"
+    "sha256": "431d7ad3b9d168fe0495850a4d4500239ef99d01d4dcc1cbb78935722e93c596",
+    "sourceInputsSha256": "1a67cba5e1e6be303265543f2c388d37f396681f891884c5ccf09409119f4423"
   },
   "terms": {
     "Achievements/NEW_ACHIEVEMENT_16_0_DESC": {
