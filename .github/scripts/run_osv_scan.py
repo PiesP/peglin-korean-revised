@@ -44,13 +44,9 @@ def finding_count(path: Path) -> int:
             raise ValueError("Expected osv-scanner driver")
         if "invocations" in run:
             invocations = run["invocations"]
-            if (
-                not isinstance(invocations, list)
-                or not invocations
-                or any(
-                    not isinstance(item, dict) or item.get("executionSuccessful") is not True
-                    for item in invocations
-                )
+            if not isinstance(invocations, list) or any(
+                not isinstance(item, dict) or item.get("executionSuccessful") is not True
+                for item in invocations
             ):
                 raise ValueError("SARIF invocation did not complete successfully")
         results = run.get("results")

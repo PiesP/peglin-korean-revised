@@ -37,7 +37,9 @@ class OsvScanTests(unittest.TestCase):
             "    results = [{'ruleId': 'GHSA-test', 'message': {'text': 'Finding'}}] "
             "if kind == 'findings' else []\n"
             "    data = {'version': '2.1.0', 'runs': "
-            "[{'tool': {'driver': {'name': 'osv-scanner'}}, 'results': results}]}\n"
+            "[{'tool': {'driver': {'name': 'osv-scanner'}}, 'invocations': [], 'results': results}]}\n"
+            "    if kind == 'failed-invocation': data['runs'][0]['invocations'] = [{'executionSuccessful': False}]\n"
+            "    if kind == 'invalid-invocation': data['runs'][0]['invocations'] = None\n"
             "    if kind == 'no-runs': data['runs'] = []\n"
             "    if kind == 'no-results': del data['runs'][0]['results']\n"
             "    if kind == 'invalid-result': data['runs'][0]['results'] = [{}]\n"
@@ -134,7 +136,15 @@ class OsvScanTests(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_invalid_reports_cannot_be_clean_or_uploadable(self) -> None:
-        for kind in ("malformed", "duplicate", "no-runs", "no-results", "invalid-result"):
+        for kind in (
+            "malformed",
+            "duplicate",
+            "no-runs",
+            "no-results",
+            "invalid-result",
+            "failed-invocation",
+            "invalid-invocation",
+        ):
             with self.subTest(kind=kind):
                 result = self.run_scan(report_kind=kind)
                 self.assertEqual(1, result.returncode)
