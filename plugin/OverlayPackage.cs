@@ -35,7 +35,13 @@ namespace PeglinKoreanRevised
             string pluginDirectory = Path.GetDirectoryName(pluginPath);
             string overlayPath = Path.Combine(pluginDirectory, "overlay.json");
             string manifestPath = Path.Combine(pluginDirectory, "manifest.json");
-            JObject root = JObject.Parse(File.ReadAllText(overlayPath, Encoding.UTF8));
+            byte[] overlayBytes = File.ReadAllBytes(overlayPath);
+            string overlayText;
+            using (StreamReader reader = new StreamReader(new MemoryStream(overlayBytes), Encoding.UTF8, true))
+            {
+                overlayText = reader.ReadToEnd();
+            }
+            JObject root = JObject.Parse(overlayText);
             JObject manifest = JObject.Parse(File.ReadAllText(manifestPath, Encoding.UTF8));
 
             if ((int?)root["schemaVersion"] != OverlaySchemaVersion ||
@@ -123,7 +129,7 @@ namespace PeglinKoreanRevised
             }
 
             if (!string.Equals(ComputeSha256(pluginPath), expectedPluginSha256, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(ComputeSha256(overlayPath), expectedOverlaySha256, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(ComputeSha256(overlayBytes), expectedOverlaySha256, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("Plugin or overlay file hash does not match the candidate manifest.");
             }
@@ -142,15 +148,27 @@ namespace PeglinKoreanRevised
             using (FileStream stream = File.OpenRead(path))
             using (SHA256 sha256 = SHA256.Create())
             {
-                byte[] hash = sha256.ComputeHash(stream);
-                StringBuilder result = new StringBuilder(hash.Length * 2);
-                foreach (byte value in hash)
-                {
-                    result.Append(value.ToString("x2"));
-                }
-
-                return result.ToString();
+                return FormatSha256(sha256.ComputeHash(stream));
             }
+        }
+
+        private static string ComputeSha256(byte[] bytes)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                return FormatSha256(sha256.ComputeHash(bytes));
+            }
+        }
+
+        private static string FormatSha256(byte[] hash)
+        {
+            StringBuilder result = new StringBuilder(hash.Length * 2);
+            foreach (byte value in hash)
+            {
+                result.Append(value.ToString("x2"));
+            }
+
+            return result.ToString();
         }
 
     }
