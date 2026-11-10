@@ -83,6 +83,10 @@ jobs:
       actions: read
       contents: read
       security-events: write
+    outputs:
+      policy: ${{ steps.scan.outputs.policy }}
+      report: ${{ steps.scan.outputs.report }}
+      upload: ${{ steps.upload.outcome }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,8 +96,33 @@ jobs:
         id: scan
         run: python3 .github/scripts/run_osv_scan.py
       - name: Upload OSV results to code scanning
+        id: upload
         if: ${{ !cancelled() && steps.scan.outputs.report == 'true' }}
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: ${{ runner.temp }}/osv-results/osv-results.sarif
           category: osv-scanner
+
+  security-summary:
+    name: Security scan summary
+    if: ${{ always() }}
+    needs: [osv, codeql]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require completed security policy and analyses
+        env:
+          OSV_RESULT: ${{ needs.osv.result }}
+          OSV_POLICY: ${{ needs.osv.outputs.policy }}
+          OSV_REPORT: ${{ needs.osv.outputs.report }}
+          OSV_UPLOAD: ${{ needs.osv.outputs.upload }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+        run: |
+          set -euo pipefail
+          printf 'OSV=%s policy=%s report=%s upload=%s CodeQL=%s\n' \
+            "${OSV_RESULT:-missing}" "${OSV_POLICY:-missing}" "${OSV_REPORT:-missing}" \
+            "${OSV_UPLOAD:-missing}" "${CODEQL_RESULT:-missing}"
+          [[ "${OSV_RESULT:-}" == success && "${OSV_POLICY:-}" == clean && \
+             "${OSV_REPORT:-}" == true && "${OSV_UPLOAD:-}" == success && \
+             "${CODEQL_RESULT:-}" == success ]]
