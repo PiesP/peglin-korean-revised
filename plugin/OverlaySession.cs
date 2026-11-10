@@ -22,7 +22,6 @@ namespace PeglinKoreanRevised
         private readonly Action<string> error;
         private readonly HashSet<object> appliedSources = new HashSet<object>();
         private bool disposed;
-        private int appliedTerms;
 
         internal OverlaySession(IReadOnlyDictionary<string, string> translations,
             ILocalizationPort localization, Action<string> info, Action<string> error)
@@ -50,13 +49,15 @@ namespace PeglinKoreanRevised
                 if (stableFrames < 30) yield return null;
             }
             if (disposed) yield break;
-            if (totalApplied == 0)
+            if (appliedSources.Count == 0)
             {
                 error("No overlay terms matched the Korean I2 source; no translations were applied.");
                 yield break;
             }
-            appliedTerms = totalApplied;
-            info("Applied " + appliedTerms + " Korean translations to the in-memory I2 table.");
+            if (totalApplied > 0)
+            {
+                info("Applied " + totalApplied + " Korean translations to the in-memory I2 table.");
+            }
         }
 
         internal IEnumerator ApplyAfterSceneLoad()
