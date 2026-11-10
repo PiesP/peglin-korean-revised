@@ -33,7 +33,19 @@ class OsvScanTests(unittest.TestCase):
             "if os.environ['REPORT_KIND'] != 'missing':\n"
             "    result_dir = pathlib.Path(args[args.index('--volume') + 3].split(':/results')[0])\n"
             "    report = result_dir / 'osv-results.sarif'\n"
-            "    report.write_text('SARIF' if os.environ['REPORT_KIND'] == 'valid' else '')\n"
+            "    kind = os.environ['REPORT_KIND']\n"
+            "    results = [{'ruleId': 'GHSA-test', 'message': {'text': 'Finding'}}] "
+            "if kind == 'findings' else []\n"
+            "    data = {'version': '2.1.0', 'runs': "
+            "[{'tool': {'driver': {'name': 'osv-scanner'}}, 'invocations': [], 'results': results}]}\n"
+            "    if kind == 'failed-invocation': data['runs'][0]['invocations'] = [{'executionSuccessful': False}]\n"
+            "    if kind == 'invalid-invocation': data['runs'][0]['invocations'] = None\n"
+            "    if kind == 'no-runs': data['runs'] = []\n"
+            "    if kind == 'no-results': del data['runs'][0]['results']\n"
+            "    if kind == 'invalid-result': data['runs'][0]['results'] = [{}]\n"
+            "    report.write_text('' if kind == 'empty' else 'SARIF' if kind == 'malformed' "
+            'else \'{"version":"2.1.0","runs":[],"runs":[]}\' if kind == \'duplicate\' '
+            "else json.dumps(data))\n"
             "if int(os.environ['SCAN_STATUS']) < 0:\n"
             "    import signal\n"
             "    os.kill(os.getpid(), -int(os.environ['SCAN_STATUS']))\n"
@@ -75,7 +87,11 @@ class OsvScanTests(unittest.TestCase):
     def test_clean_scan_preserves_docker_contract_and_output(self) -> None:
         result = self.run_scan()
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("report=true\n", self.output.read_text())
+        self.assertEqual("report=true\npolicy=clean\n", self.output.read_text())
+        self.assertEqual(
+            "IgnoredVulns = []\nPackageOverrides = []\n",
+            (self.report().parent / "policy.toml").read_text(),
+        )
         self.assertEqual(0o700, stat.S_IMODE(self.report().parent.stat().st_mode))
         self.assertEqual(
             [
@@ -90,6 +106,7 @@ class OsvScanTests(unittest.TestCase):
                 "example.invalid/osv@sha256:abc",
                 "--format=sarif",
                 "--output-file=/results/osv-results.sarif",
+                "--config=/results/policy.toml",
                 "--lockfile=uv.lock",
                 "--lockfile=plugin/packages.lock.json",
                 ".",
@@ -98,11 +115,41 @@ class OsvScanTests(unittest.TestCase):
         )
 
     @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
-    def test_findings_emit_warning_and_allow_upload(self) -> None:
-        result = self.run_scan(status=1)
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("::warning::Known vulnerable dependencies", result.stdout)
+    def test_findings_block_merging_and_allow_upload(self) -> None:
+        result = self.run_scan(status=1, report_kind="findings")
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("::error::OSV findings block merging", result.stdout)
         self.assertEqual("report=true\n", self.output.read_text())
+
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
+    def test_exit_zero_cannot_hide_report_findings(self) -> None:
+        result = self.run_scan(status=0, report_kind="findings")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("contains findings despite scanner exit 0", result.stdout)
+        self.assertEqual("report=true\n", self.output.read_text())
+
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
+    def test_finding_exit_without_report_findings_is_not_clean(self) -> None:
+        result = self.run_scan(status=1)
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("report=true\n", self.output.read_text())
+
+    @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
+    def test_invalid_reports_cannot_be_clean_or_uploadable(self) -> None:
+        for kind in (
+            "malformed",
+            "duplicate",
+            "no-runs",
+            "no-results",
+            "invalid-result",
+            "failed-invocation",
+            "invalid-invocation",
+        ):
+            with self.subTest(kind=kind):
+                result = self.run_scan(report_kind=kind)
+                self.assertEqual(1, result.returncode)
+                self.assertIn("Invalid OSV SARIF report", result.stderr)
+                self.assertFalse(self.output.exists())
 
     @unittest.skipIf(os.name == "nt", "The fake Docker command is a POSIX shebang executable.")
     def test_operational_error_preserves_status_and_allows_report_upload(self) -> None:
@@ -173,6 +220,40 @@ class OsvScanTests(unittest.TestCase):
         self.assertIn("sarif_file: ${{ runner.temp }}/osv-results/osv-results.sarif", security)
         self.assertIn("build_public_stub_plugin.py stubs", csharp)
         self.assertIn("build_public_stub_plugin.py plugin", csharp)
+
+    @unittest.skipIf(os.name == "nt", "The maintained Actions summary uses Bash.")
+    def test_actual_security_summary_rejects_incomplete_results(self) -> None:
+        workflow = SECURITY_WORKFLOW.read_text()
+        summary = workflow.split("\n  security-summary:\n", 1)[1]
+        self.assertIn("if: ${{ always() }}", summary)
+        self.assertIn("needs: [osv, codeql]", summary)
+        self.assertIn("fail-fast: false", workflow)
+        for language in ("actions", "csharp", "python"):
+            self.assertIn(f"- language: {language}", workflow)
+        script = "\n".join(
+            line[10:] for line in summary.split("        run: |\n", 1)[1].splitlines()
+        )
+        clean = dict(
+            OSV_RESULT="success",
+            OSV_POLICY="clean",
+            OSV_REPORT="true",
+            OSV_UPLOAD="success",
+            CODEQL_RESULT="success",
+        )
+        cases = [(clean, True)]
+        for key in clean:
+            for value in ("failure", "cancelled", "skipped", "", "unknown"):
+                cases.append(({**clean, key: value}, False))
+        for environment, success in cases:
+            with self.subTest(environment=environment):
+                result = subprocess.run(
+                    ["bash", "-c", script],
+                    env={**os.environ, **environment},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(success, result.returncode == 0, result.stderr)
 
 
 if __name__ == "__main__":

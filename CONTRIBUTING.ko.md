@@ -148,6 +148,7 @@ and translation lint on the latest available 3.11 patch, rejecting versions olde
 than 3.11.18. The package still supports `>=3.11`, and Ruff still targets `py311`.
 The required `validate` check succeeds only when both Python lanes succeed;
 release-source verification retains the `validate` and `csharp-build` check names.
+
 The default install covers contribution checks and public release assembly.
 Commands that read the installed Peglin game need UnityPy from the `extract`
 extra: run `uv sync --locked --python 3.14 --extra extract`, then invoke them as
@@ -169,6 +170,33 @@ supported release source.
 Check maintained Python code before committing with `uv run --locked ruff check .`
 and `uv run --locked ruff format --check .`. Use `uv run --locked ruff format .`
 to apply the configured formatting.
+
+### Protected merge security policy
+
+`security.yaml` emits `Security scan summary` on every PR, default-branch push,
+scheduled scan and manual scan. Its required producer is GitHub Actions (App ID
+15368), alongside the unchanged `validate` and `csharp-build` checks. Success
+requires a completed clean OSV scan of both `uv.lock` and
+`plugin/packages.lock.json`, successful SARIF upload, and completion of all three
+CodeQL language lanes. Failed, cancelled, unexpectedly skipped or missing work
+cannot pass. CodeQL completion does not mean zero CodeQL alerts; no separate
+code-scanning finding-severity rule is declared here.
+
+The OSV findings policy has no exceptions: every reported finding blocks merging.
+The helper supplies an empty scanner configuration outside the source checkout,
+so candidate-local ignore files do not authorize exceptions. Findings and valid
+reports from operational failures remain uploadable without making the policy
+pass. Missing, empty, malformed or stale reports fail. A future exception needs a
+separately reviewed policy change naming the advisory, package/version and lockfile,
+rationale, owner and expiry or review trigger; a candidate must not grant itself
+an ignore or select its own trusted baseline. Native auto-merge stays disabled;
+release-tag protection and manual release admission remain separate.
+
+Activate a new required context only after its PR producer has been observed.
+Preserve the existing app-bound names and all other protection fields. If a
+producer fails, repair or revert it through a protected PR while retaining the
+last verified required contexts; never remove a failing gate to make a merge pass.
+
 
 ### .NET SDK selection
 
@@ -291,7 +319,7 @@ as a current runtime credential.
 | `python3 .github/scripts/resolve_toolchains.py` | Bootstrap Python on Ubuntu before setup-python or `uv`; reads only `pyproject.toml` with standard-library `tomllib`, appends validated Python/uv versions to `GITHUB_OUTPUT`. It cannot import installed project dependencies or assume a newer bootstrap Python. | `test_toolchain_selection.py` |
 | `python3 .github/scripts/build_public_stub_plugin.py stubs <reference-directory>` | Ubuntu system Python 3.11 or newer and .NET SDK, before CodeQL initialization; checks all four public-stub lockfiles, restores and builds three projects with locked inputs, then copies four reference DLLs into a private directory. No package install or game DLL input. | `test_public_stub_build.py`, hosted `csharp-build` and CodeQL C# jobs |
 | `python3 .github/scripts/build_public_stub_plugin.py plugin <reference-directory>` | Same system Python and .NET SDK, after CodeQL initialization for C#; checks the plugin lockfile and four public DLLs, restores and builds the plugin with a private temporary MSBuild target removed after use. | `test_public_stub_build.py`, hosted `csharp-build` and CodeQL C# jobs |
-| `python3 .github/scripts/run_osv_scan.py` | Ubuntu system Python 3.11 or newer and Docker in `security.yaml`; reads `RUNNER_TEMP`, `GITHUB_WORKSPACE`, `OSV_SCANNER_IMAGE`, and `GITHUB_OUTPUT`, removes stale SARIF, runs the workflow-selected image against both lockfiles, and appends `report=true` only for a nonempty SARIF file. Findings warn; operational failures remain nonzero while a valid report stays uploadable. | `test_osv_scan.py`, hosted OSV job |
+| `python3 .github/scripts/run_osv_scan.py` | Ubuntu system Python 3.11 or newer and Docker in `security.yaml`; reads `RUNNER_TEMP`, `GITHUB_WORKSPACE`, `OSV_SCANNER_IMAGE`, and `GITHUB_OUTPUT`, removes stale SARIF, supplies an empty ignore policy, scans both lockfiles, validates the report structure and appends `report=true` for uploadable SARIF. Findings and operational failures remain nonzero; only a clean completed scan emits `policy=clean`. See the protected merge security policy above. | `test_osv_scan.py`, hosted OSV job |
 | `python3 .github/scripts/verify_release_source.py` | Source-eligibility job after read-only checkout and Python setup; reads tag, actor, source and repository environment, invokes `gh api` with inherited `GH_TOKEN`, and writes eligibility/source/tag/tag-object outputs. It never publishes. | `test_release_source_policy.py` |
 | `python3 .github/scripts/verify_release_artifacts.py` | Publication job, standard library only, from a reviewed immutable trusted checkout; reads downloaded current-run files and verified source/tag environment; appends release outputs only after every check passes. No candidate import/install or network call. | `test_release_artifact_verifier.py` |
 | `python3 .github/scripts/publish_release.py` | Publication job after successful artifact verification; uses inherited `GH_TOKEN`, rechecks the annotated tag object through `gh api`, then passes the verified seven assets to `gh release create` as an argument vector. | `test_release_publisher.py` |
