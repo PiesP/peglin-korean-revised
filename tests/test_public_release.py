@@ -721,8 +721,8 @@ class ReleasePackagingTests(unittest.TestCase):
             first_files["release-notes.md"].decode("utf-8"),
         )
         release_notes = first_files["release-notes.md"].decode("utf-8")
-        self.assertIn("실제 플레이로 확인되지 않은 번역", release_notes)
-        self.assertIn("대상 Steam 빌드: `123`", release_notes)
+        self.assertIn("This prerelease contains draft translations", release_notes)
+        self.assertIn("Supported Steam build: `123`", release_notes)
         self.assertIn("issues/new?template=translation-suggestion.yml", release_notes)
         self.assertIn("issues/new?template=patch-problem.yml", release_notes)
         self.assertIn("releases/tag/peglin-ko-v1.0.0-rc.1", release_notes)
@@ -753,6 +753,7 @@ class ReleasePackagingTests(unittest.TestCase):
         self.assertIn("Peglin.exe", package_readme)
         self.assertIn("Type = MonoBehaviour", package_readme)
         self.assertIn("BepInEx/plugins/PeglinKoreanRevised", package_readme)
+
         self.assertIn("수동 설치 후 폴더 구조", package_readme)
         self.assertIn("├── Peglin.exe", package_readme)
         self.assertIn("├── README.md", package_readme)
@@ -771,6 +772,22 @@ class ReleasePackagingTests(unittest.TestCase):
             manifest["runtime"]["pluginVersion"],
             package_manifest["runtime"]["pluginVersion"],
         )
+
+    def test_rc3_notes_describe_runtime_delta_without_claiming_translation_review(self) -> None:
+        notes = release._release_notes(
+            "peglin-ko-v1.0.0-rc.3", "a" * 40, self.lock, "draft"
+        ).decode("utf-8")
+        self.assertIn("Changes since rc.2", notes)
+        self.assertIn("one snapshot of the overlay file", notes)
+        self.assertIn("callback or scene update", notes)
+        self.assertIn("Translation rows, their draft review status", notes)
+        self.assertIn("Close the game before changing files", notes)
+        self.assertIn("prior coherent release ZIP", notes)
+        self.assertIn("Only the recorded Windows game build is supported", notes)
+        later_notes = release._release_notes(
+            "peglin-ko-v1.0.0-rc.4", "a" * 40, self.lock, "draft"
+        ).decode("utf-8")
+        self.assertNotIn("Changes since rc.2", later_notes)
 
     def test_optional_footprint_reconciles_zip_and_rejects_source_drift(self) -> None:
         (self.root / "pyproject.toml").write_text("[project]\nname = 'fixture'\n", encoding="utf-8")
