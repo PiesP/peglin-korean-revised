@@ -18,7 +18,7 @@ concurrency:
 env:
   # Resolve the scanner runtime to an immutable image digest; review updates at
   # https://github.com/google/osv-scanner-action/releases.
-  OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner-action@sha256:d54770fe0b09493894e76a02aaed9f51a0513fa57c5186452a755d257b0068a6 # v2.7.0
+  OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner-action@sha256:3fa25659351c9a5527b30d73b6f3c2ee0bcac106d6220948211d87379d08f243 # v2.7.1
 
 jobs:
   codeql:
@@ -92,7 +92,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Scan the uv lockfile
+      - name: Scan dependency lockfiles
         id: scan
         run: python3 .github/scripts/run_osv_scan.py
       - name: Upload OSV results to code scanning
