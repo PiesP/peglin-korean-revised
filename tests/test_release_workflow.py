@@ -48,37 +48,46 @@ def command(name: str) -> list[str]:
 
 class ReleaseWorkflowTests(unittest.TestCase):
     def test_patched_python_and_setup_uv_are_selected_in_all_jobs(self) -> None:
-        verify = (
-            WORKFLOW.read_text().split("  verify-release-source:\n", 1)[1].split("  build:\n", 1)[0]
-        )
-        build = WORKFLOW.read_text().split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+        release = WORKFLOW.read_text()
         validate = VALIDATE_WORKFLOW.read_text()
-        for job in (verify, build, validate):
-            with self.subTest(job=job.splitlines()[0]):
+        setup_uv_pins = {}
+        for workflow, job_name, python_version in (
+            (release, "verify-release-source", '"$PYTHON_VERSION"'),
+            (release, "build", '"$PYTHON_VERSION"'),
+            (validate, "python-maintenance", '"$PYTHON_VERSION"'),
+            (validate, "python-compat", "3.11"),
+        ):
+            with self.subTest(job=job_name):
+                remaining = workflow.split(f"\n  {job_name}:\n", 1)[1]
+                job = re.split(r"^  [\w-]+:$", remaining, maxsplit=1, flags=re.MULTILINE)[0]
+                verify_python = (
+                    f"python .github/scripts/verify_python.py {python_version} "
+                    '--selected-executable "${{ steps.setup-python.outputs.python-path }}"'
+                )
                 self.assertIn("check-latest: true", job)
                 self.assertLess(job.index("Set up Python"), job.index("Verify selected Python"))
                 self.assertIn("id: setup-python", job)
-                self.assertIn(
-                    'python .github/scripts/verify_python.py "$PYTHON_VERSION" --selected-executable "${{ steps.setup-python.outputs.python-path }}"',
+                self.assertIn(f"run: {verify_python}\n", job)
+                if job_name == "verify-release-source":
+                    continue
+
+                pins = re.findall(
+                    r"^      - name: Set up uv\n"
+                    r"        uses: astral-sh/setup-uv@([0-9a-f]{40}) # v\d+\.\d+\.\d+$",
                     job,
+                    re.MULTILINE,
                 )
-        for job in (build, validate):
-            with self.subTest(job=job.splitlines()[0]):
-                self.assertIn(
-                    "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3",
-                    job,
-                )
+                self.assertEqual(len(pins), 1, "Expected one full SHA pin on the Set up uv step")
+                setup_uv_pins[job_name] = pins[0]
                 self.assertIn(
                     'uv sync --locked --python "${{ steps.setup-python.outputs.python-path }}"', job
                 )
-                self.assertIn(
-                    'uv run --locked python .github/scripts/verify_python.py "$PYTHON_VERSION" --selected-executable "${{ steps.setup-python.outputs.python-path }}"',
-                    job,
-                )
+                self.assertIn(f"run: uv run --locked {verify_python}\n", job)
                 self.assertLess(job.index("Verify selected Python"), job.index("Set up uv"))
                 self.assertLess(
                     job.index("Install locked dependencies"), job.index("Verify uv project Python")
                 )
+        self.assertEqual(len(set(setup_uv_pins.values())), 1, setup_uv_pins)
 
     @unittest.skipIf(os.name == "nt", "The Actions Bash contract is exercised on Linux.")
     def test_manual_verification_guard_runs_before_checkout(self) -> None:
